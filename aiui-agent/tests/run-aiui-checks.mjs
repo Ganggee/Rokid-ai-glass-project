@@ -224,6 +224,11 @@ await check('LOCAL: voice "케어센스 센서 한 개 사용" -> confirm screen
   assert(d.view === 'detail' && rt.storage.get('inv.local.v1').transactions.length === 0, 'cancel by voice writes nothing');
 });
 
+{
+  const { mealLocalScenarios } = await import(pathToFileURL(path.join(here, 'meal-scenarios.mjs')));
+  await mealLocalScenarios({ check, assert, openPage, makeRuntime, AGENT });
+}
+
 // ------------------------------------------------------------------ 3. SERVER mode behavior (real backend)
 if (WITH_SERVER) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aiui-backend-'));

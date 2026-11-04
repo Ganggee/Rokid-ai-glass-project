@@ -1,7 +1,8 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/inventory/inventory"
+    "pages/inventory/inventory",
+    "pages/meal/meal"
   ],
   "window": {
     "navigationBarTitleText": "Rokid Dual PoC"
