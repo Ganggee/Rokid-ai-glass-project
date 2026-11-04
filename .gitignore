@@ -1,0 +1,48 @@
+# --- secrets / environment ---
+.env
+.env.*
+!.env.example
+
+# --- runtime data (never commit company inventory, meal photos, voice logs) ---
+data/
+uploads/
+reports/
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+backend/data/
+backend/uploads/
+
+# Real inventory files dropped in by users (sample-data/*_demo.* are tracked)
+sample-data/real/
+*.xlsx
+!sample-data/inventory_demo.xlsx
+
+# --- AIUI ---
+*.aix
+aiui-agent/lib/config.local.js
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+
+# --- Node ---
+node_modules/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- optional model weights ---
+checkpoints/
+*.pt
+*.pth
+*.onnx

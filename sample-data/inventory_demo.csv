@@ -1,0 +1,4 @@
+product_id,product_name,category,stock_qty,unit,barcode,qr_value,lot_no,expiration_date,location,aliases
+CARE-SENS-AIR-SENSOR,CareSens Air Sensor,CGM_SENSOR,20,ea,0880000000001,CARE-SENS-AIR-SENSOR,DEMO-LOT-A,2027-12-31,Demo cabinet A,케어센스 에어 센서;케어센스 센서;케어센스;센서;caresens sensor
+CARE-SENS-AIR-APPLICATOR,CareSens Air Applicator,CGM_APPLICATOR,10,ea,0880000000002,CARE-SENS-AIR-APPLICATOR,DEMO-LOT-B,2028-06-30,Demo cabinet A,케어센스 에어 어플리케이터;케어센스 어플리케이터;어플리케이터;applicator
+HICARDI-PATCH,HiCardi Patch,ECG_PATCH,15,ea,0880000000003,HICARDI-PATCH,DEMO-LOT-C,2027-09-30,Demo cabinet B,하이카디 패치;하이카디;패치;hicardi patch

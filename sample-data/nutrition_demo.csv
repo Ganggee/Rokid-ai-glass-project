@@ -1,0 +1,7 @@
+id,food_name,aliases,kcal_per_100g,carbs_g_per_100g,protein_g_per_100g,fat_g_per_100g,source,source_detail,is_demo
+DEMO-RICE,밥,쌀밥;흰쌀밥;rice;steamed rice,150,33,2.7,0.3,DEMO_MOCK,"PoC mock value for pipeline testing only. NOT from MFDS DB; replace via MFDS OpenAPI before any real use.",1
+DEMO-KIMCHI,김치,배추김치;kimchi,25,4,1.5,0.5,DEMO_MOCK,"PoC mock value for pipeline testing only. NOT from MFDS DB.",1
+DEMO-EGG,계란,달걀;계란후라이;egg;fried egg,190,1,13,15,DEMO_MOCK,"PoC mock value for pipeline testing only. NOT from MFDS DB.",1
+DEMO-SALAD,샐러드,야채샐러드;salad,20,3.5,1.2,0.2,DEMO_MOCK,"PoC mock value for pipeline testing only. NOT from MFDS DB.",1
+DEMO-CHICKEN,닭가슴살,chicken breast;chicken,110,0,23,1.5,DEMO_MOCK,"PoC mock value for pipeline testing only. NOT from MFDS DB.",1
+DEMO-SOUP,국,된장국;미역국;soup,30,3,2,1,DEMO_MOCK,"PoC mock value; liquid foods are poorly estimated from 2D area.",1
