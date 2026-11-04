@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS meal_images (
     height     INTEGER NOT NULL,
     size_bytes INTEGER NOT NULL,
     sha256     TEXT NOT NULL,
+    detected_regions TEXT,      -- JSON candidate regions (before photo only)
     created_at TEXT NOT NULL,
     UNIQUE (session_id, kind)
 );

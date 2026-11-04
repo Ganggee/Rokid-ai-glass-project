@@ -37,6 +37,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     conn = connect(settings.database_path)
     try:
         init_db(conn)
+        from .services.nutrition_lookup import ensure_seeded
+
+        ensure_seeded(conn, settings.nutrition_csv)
     finally:
         conn.close()
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -80,13 +83,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from .routers import inventory
 
+    from .routers import admin, meals, nutrition
+
     app.include_router(inventory.router)
-    try:
-        from .routers import meals, nutrition, admin
-    except ImportError:  # Task 2 modules are optional during incremental development
-        pass
-    else:
-        app.include_router(meals.router)
-        app.include_router(nutrition.router)
-        app.include_router(admin.router)
+    app.include_router(meals.router)
+    app.include_router(nutrition.router)
+    app.include_router(admin.router)
     return app
