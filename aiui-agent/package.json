@@ -1,0 +1,8 @@
+{
+  "name": "rokid-dual-poc-agent",
+  "version": "0.1.0",
+  "description": "Rokid RV101 AIUI agent: inventory (persistent stock use) and before/after meal photo analysis PoC",
+  "main": "app.js",
+  "private": true,
+  "dependencies": {}
+}

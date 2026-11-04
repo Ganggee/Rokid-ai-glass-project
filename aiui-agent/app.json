@@ -1,0 +1,13 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/inventory/inventory"
+  ],
+  "window": {
+    "navigationBarTitleText": "Rokid Dual PoC"
+  },
+  "permissions": [
+    "CAMERA",
+    "RECORD_AUDIO"
+  ]
+}
