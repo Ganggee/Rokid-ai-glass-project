@@ -1,0 +1,44 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Tesseract (optional OCR tests)
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - name: Install dependencies
+        run: python -m pip install -r backend/requirements.txt ruff
+      - name: Lint (pyflakes rules)
+        run: ruff check backend scripts aiui-agent/tests
+      - name: Unit + API E2E tests
+        run: python -m pytest -q
+
+  aiui-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+      - name: Fetch official AIUI repo (validator + logic loader)
+        run: git clone --depth 1 https://github.com/yodaos-project/AIUI ../AIUI
+      - name: AIUI static validation + page-logic harness against the real backend
+        run: node aiui-agent/tests/run-aiui-checks.mjs --aiui-repo ../AIUI --with-server --python python --report aiui-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aiui-report
+          path: aiui-report.json
