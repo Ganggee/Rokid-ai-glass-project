@@ -386,10 +386,13 @@ def run_soak(conn, path, seed_value: int, uses: int, edits: int, restarts: int, 
     dup = conn.execute("SELECT file_sha256, COUNT(*) FROM excel_imports GROUP BY file_sha256 HAVING COUNT(*) > 1").fetchall()
     assert not dup
     assert conn.execute("SELECT COUNT(*) FROM products WHERE product_id LIKE '%-TYPO'").fetchone()[0] == 0
-    # bounded storage (review X-2)
-    assert max_rows["excel_exports"] <= xs.KEEP_EXPORTS + 2, max_rows
-    assert max_rows["excel_snapshots"] <= xs.KEEP_EXPORTS + 2, max_rows
-    assert max_rows["excel_imports"] <= (xs.KEEP_EXPORTS + 2) * xs.KEEP_IMPORTS_PER_EXPORT, max_rows
+    # bounded storage (review X-2 / R-1): max(KEEP_EXPORTS, 90-day window capped at KEEP_MAX_EXPORTS + 1/day)
+    bound = max(xs.KEEP_EXPORTS, xs.KEEP_MAX_EXPORTS + xs.KEEP_DAYS) + 2
+    assert max_rows["excel_exports"] <= bound, max_rows
+    assert max_rows["excel_snapshots"] <= bound, max_rows
+    assert max_rows["excel_imports"] <= bound * xs.KEEP_IMPORTS_PER_EXPORT, max_rows
+    stored = conn.execute("SELECT COALESCE(MAX(LENGTH(snapshot_json)), 0) FROM excel_snapshots").fetchone()[0]
+    stats["max_snapshot_bytes"] = stored
     assert max_rows["excel_sync_events"] <= xs.KEEP_EVENTS + 200, max_rows
     stats["max_rows"] = max_rows
     return conn, stats
@@ -530,6 +533,7 @@ def test_x3_merge_delta_both_changed_is_safe_but_negative_is_not(env):
 def test_x2_snapshot_retention_bounded(env, monkeypatch):
     conn, path = env
     monkeypatch.setattr(xs, "KEEP_EXPORTS", 5)
+    monkeypatch.setattr(xs, "KEEP_DAYS", 0)      # count bound only (the 90-day window is tested separately)
     sync(conn, path)
     orig = xs._replace
     monkeypatch.setattr(xs, "_replace", lambda a, b: (_ for _ in ()).throw(PermissionError("locked")))
@@ -666,3 +670,147 @@ def test_x6_real_app_poller_with_concurrent_http_and_edits(tmp_path):
         assert conn.execute("SELECT COUNT(*) FROM inventory_transactions WHERE source = 'excel_sync'").fetchone()[0] >= 1
     finally:
         conn.close()
+
+
+# ------------------------------------------------------------------ review 04 (round 2)
+def _export_id(path):
+    return load_workbook(path)["_sync"]["B1"].value
+
+
+def test_r1_old_copy_beyond_keep_count_but_within_90_days_still_merges(env, monkeypatch, tmp_path):
+    conn, path = env
+    monkeypatch.setattr(xs, "KEEP_EXPORTS", 5)
+    sync(conn, path)
+    old = tmp_path / "old-copy.xlsx"
+    shutil.copy(path, old)                       # a person keeps the file open/old copy (E1)
+    for _ in range(10):                          # 10 newer exports: E1 is outside the newest 5
+        use(conn)
+        sync(conn, path)
+    assert stock(conn) == 10
+    edit(old, {(H, "stock_qty"): 999})
+    shutil.copy(old, path)                       # the old copy is saved over the newer export
+    r = sync(conn, path, auto=True)
+    assert r["status"] == "merged_and_exported", r.get("plan", {}).get("blocked")
+    assert stock(conn) == 10 and stock(conn, H) == 999   # use history kept, the person's edit applied
+    check_invariants(conn)
+
+
+def _age_all_exports(conn, days=120):
+    from datetime import datetime, timedelta, timezone
+    old = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="milliseconds")
+    conn.execute("UPDATE excel_exports SET created_at = ?", (old,))
+
+
+def _blocked_by_pruned_baseline(env, monkeypatch, tmp_path):
+    conn, path = env
+    monkeypatch.setattr(xs, "KEEP_EXPORTS", 2)
+    sync(conn, path)
+    old = tmp_path / "old.xlsx"
+    shutil.copy(path, old)
+    _age_all_exports(conn)                       # E1 is older than 90 days
+    for _ in range(3):
+        use(conn)
+        sync(conn, path)
+    e1 = _export_id(old)
+    assert conn.execute("SELECT 1 FROM excel_exports WHERE export_id = ?", (e1,)).fetchone() is None
+    edit(old, {(H, "stock_qty"): 999})
+    shutil.copy(old, path)
+    r = sync(conn, path, auto=True)
+    assert r["status"] == "blocked"
+    from backend.app.config import load_settings
+    st = xs.status(conn, path, load_settings(api_token="t"))
+    assert st["state"] == "blocked" and "기준" in st["reason_text"]
+    assert stock(conn) == 17 and stock(conn, H) == 15     # nothing applied
+    return old
+
+
+def test_r1_snapshot_older_than_retention_is_pruned_then_blocked_with_readable_reason(env, monkeypatch, tmp_path):
+    _blocked_by_pruned_baseline(env, monkeypatch, tmp_path)
+
+
+def test_r1_resolve_discard_file_requires_confirmation_backs_up_and_reexports(env, monkeypatch, tmp_path):
+    conn, path = env
+    _blocked_by_pruned_baseline(env, monkeypatch, tmp_path)
+    backups = tmp_path / "backups"
+    from backend.app.errors import ApiError
+    with pytest.raises(ApiError):
+        xs.resolve(conn, path, "discard_file", confirmed=False, backup_dir=backups)
+    r = xs.resolve(conn, path, "discard_file", confirmed=True, backup_dir=backups)
+    assert r["status"] == "exported" and r["backup"]
+    assert len(list(backups.glob("*.xlsx"))) == 1
+    assert excel_stock(path) == 17 and excel_stock(path, H) == 15 and stock(conn, H) == 15
+    assert sync(conn, path, auto=True)["status"] == "up_to_date"
+
+
+def test_r1_resolve_apply_file_values_preview_then_confirm(env, monkeypatch, tmp_path):
+    conn, path = env
+    _blocked_by_pruned_baseline(env, monkeypatch, tmp_path)
+    prev = xs.resolve(conn, path, "apply_file_values", confirmed=False, dry_run=True, backup_dir=tmp_path / "b")
+    changes = {c["product_id"]: c for c in prev["plan"]["stock_changes"]}
+    assert changes[H]["to"] == 999 and changes[S]["to"] == 20     # absolute file values (shown before confirming)
+    assert stock(conn, H) == 15                                   # preview writes nothing
+    r = xs.resolve(conn, path, "apply_file_values", confirmed=True, backup_dir=tmp_path / "b")
+    assert r["status"] == "merged_and_exported"
+    assert stock(conn, H) == 999 and stock(conn) == 20
+    assert [t["source"] for t in adjusts(conn, H)] == ["excel_sync"]
+    check_invariants(conn)
+    assert sync(conn, path, auto=True)["status"] == "up_to_date"
+
+
+def test_r1_window_is_capped_and_snapshots_compressed(env, monkeypatch):
+    conn, path = env
+    monkeypatch.setattr(xs, "KEEP_EXPORTS", 3)
+    monkeypatch.setattr(xs, "KEEP_MAX_EXPORTS", 6)
+    sync(conn, path)
+    for _ in range(12):
+        use(conn)
+        sync(conn, path)
+    n = conn.execute("SELECT COUNT(*) FROM excel_exports").fetchone()[0]
+    assert n <= 6 + 1 + 2                         # newest 6 + one for "today" + file/last ids
+    raw = conn.execute("SELECT snapshot_json FROM excel_snapshots LIMIT 1").fetchone()[0]
+    assert raw.startswith("z1:")
+    assert xs._baseline(conn, _export_id(path))[S]["stock_qty"] == stock(conn)
+
+
+def test_x5_startup_sync_records_observed_stat_so_first_poll_is_stable(env):
+    conn, path = env
+    sync(conn, path)                              # previous server run exported the file
+    obs: dict = {}                                # new process: empty observed map
+    xs.sync_once(conn, path, apply=True, auto=True, observed=obs)          # lifespan startup sync
+    r = xs.sync_once(conn, path, apply=True, auto=True, require_stable=True, observed=obs)  # first poll
+    assert r["status"] == "up_to_date"
+
+
+def test_r9_libreoffice_lock_file_detected(env):
+    conn, path = env
+    sync(conn, path)
+    lock = path.parent / f".~lock.{path.name}#"
+    lock.write_text("x")
+    assert xs.lock_file_present(path)
+    use(conn)
+    assert sync(conn, path)["status"] == "deferred_locked_by_excel"
+    lock.unlink()
+    assert sync(conn, path)["status"] == "exported"
+
+
+def test_r1_resolve_api_and_admin_buttons(tmp_path):
+    from fastapi.testclient import TestClient
+    from backend.app.config import load_settings
+    from backend.app.main import create_app
+    db = tmp_path / "a.sqlite3"
+    seed(db)
+    path = tmp_path / "linked" / "inv.xlsx"
+    s = load_settings(env_file=tmp_path / "none.env", api_token="test-token-0123456789abcdef", database_path=db,
+                      upload_dir=tmp_path / "u", inventory_xlsx_path=path, inventory_xlsx_poll_seconds=0)
+    with TestClient(create_app(s)) as c:
+        c.headers.update(AUTH)
+        assert path.exists()
+        r = c.post("/api/v1/inventory/excel-sync/resolve", json={"action": "discard_file"})
+        assert r.status_code == 400 and r.json()["error"]["code"] == "CONFIRMATION_REQUIRED"
+        r = c.post("/api/v1/inventory/excel-sync/resolve", json={"action": "apply_file_values", "dry_run": True})
+        assert r.status_code == 200 and r.json()["status"] == "preview"
+        r = c.post("/api/v1/inventory/excel-sync/resolve", json={"action": "discard_file", "confirmed": True})
+        assert r.status_code == 200 and r.json()["status"] == "exported"
+        assert c.post("/api/v1/inventory/excel-sync/resolve", json={"action": "nope", "confirmed": True}).status_code == 422
+        page = c.get("/admin/inventory-sync").text
+        assert "discard_file" in page and "apply_file_values" in page

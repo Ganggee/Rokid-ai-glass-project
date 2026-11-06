@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, File, Form, Query, Request, UploadFile
 from pydantic import BaseModel, Field
@@ -129,6 +129,22 @@ def excel_sync_run(body: ExcelSyncRequest = Body(default=ExcelSyncRequest()), se
     if not body.dry_run:
         excel_sync.check_confirmed(body.confirmed)
     return excel_sync.sync_once(conn, path, apply=True, policy=settings.inventory_xlsx_merge_policy, dry_run=body.dry_run)
+
+
+class ExcelResolveRequest(BaseModel):
+    action: Literal["discard_file", "apply_file_values"] = Field(
+        description="discard_file: back up the file and re-export DB values over it. "
+        "apply_file_values: take every valid row of the file as the absolute value (adjust transactions), then export.")
+    dry_run: bool = Field(default=False, description="true = show what would happen, change nothing")
+    confirmed: bool = Field(default=False, description="must be true unless dry_run")
+
+
+@router.post("/excel-sync/resolve")
+def excel_sync_resolve(body: ExcelResolveRequest, settings: Settings = Depends(get_settings), conn=Depends(get_conn)):
+    """Explicit operator resolution when the safe merge stopped (blocked / needs_review)."""
+    path = excel_sync.require_enabled(settings)
+    backup_dir = settings.database_path.parent / "excel_backups"
+    return excel_sync.resolve(conn, path, body.action, confirmed=body.confirmed, backup_dir=backup_dir, dry_run=body.dry_run)
 
 
 @router.get("/excel-sync/status")

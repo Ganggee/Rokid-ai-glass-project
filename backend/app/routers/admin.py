@@ -147,6 +147,10 @@ SYNC_HTML = r"""<!doctype html>
  <button onclick="refresh()">Refresh status</button> <button onclick="preview()">Preview changes</button>
  <button id="apply" onclick="applyNow()" disabled>Apply valid rows + export</button></div>
 <div id="summary"></div>
+<div id="resolve" style="display:none"><h2>Resolve (merge stopped)</h2>
+ <div class="row"><button onclick="resolveAct('discard_file')" title="action=discard_file">파일 수정 버리고 DB 값으로 다시 내보내기</button>
+ <button onclick="resolveAct('apply_file_values')" title="action=apply_file_values">파일 값을 재고에 반영(adjust)</button></div>
+ <div id="resolvePlan"></div></div>
 <h2>Plan (preview)</h2><div id="plan">Press "Preview changes".</div>
 <h2>Recent events</h2><table id="events"><thead><tr><th>time</th><th>kind</th><th>product</th><th>detail</th></tr></thead><tbody></tbody></table>
 <pre id="raw"></pre>
@@ -164,8 +168,9 @@ async function refresh(){
   const s = await api('/api/v1/inventory/excel-sync/status');
   if (!s.enabled) { document.getElementById('summary').innerHTML = 'Disabled: ' + esc(s.reason); return; }
   const cls = s.state.startsWith('ok') ? 'ok' : (['error','blocked','needs_review'].includes(s.state) ? 'bad' : 'warn');
+  document.getElementById('resolve').style.display = ['blocked','needs_review'].includes(s.state) ? 'block' : 'none';
   document.getElementById('summary').innerHTML =
-    `<div class="row">State <span class="state ${cls}">${esc(s.state)}</span> pending export: <b>${s.pending_export}</b>
+    `<div class="row"><b>${esc(s.reason_text)}</b></div><div class="row">State <span class="state ${cls}">${esc(s.state)}</span> pending export: <b>${s.pending_export}</b>
      ${s.pending_reason ? '(' + esc(s.pending_reason) + ')' : ''} auto-apply: ${s.auto_apply} poll: ${s.poll_seconds}s</div>
      <div class="row">File: ${esc(s.path)} ${s.lock_file_present ? '<b>(open in Excel)</b>' : ''}
      ${s.conflict_copies.length ? ' conflict copies ignored: ' + esc(s.conflict_copies.join(', ')) : ''}</div>
@@ -199,6 +204,18 @@ async function applyNow(){
   const r = await api('/api/v1/inventory/excel-sync', {method:'POST', body: JSON.stringify({dry_run: false, confirmed: true})});
   alert('Result: ' + r.status + (r.plan && r.plan.invalid.length ? ' (' + r.plan.invalid.length + ' row(s) rejected)' : ''));
   document.getElementById('apply').disabled = true; refresh(); document.getElementById('plan').innerHTML = '';
+}
+async function resolveAct(action){
+  if (action === 'apply_file_values') {
+    const p = (await api('/api/v1/inventory/excel-sync/resolve', {method:'POST', body: JSON.stringify({action, dry_run: true})})).plan;
+    document.getElementById('resolvePlan').innerHTML = table('File values that will be applied', p.stock_changes, ['product_id','from','to']) +
+      table('Metadata', p.meta_changes, ['product_id','fields']) + table('New products', p.creates, ['product_id','product_name','stock_qty']) +
+      table('Invalid rows (skipped)', p.invalid, ['row','product_id','message']);
+    if (!confirm('Apply the file values shown above as stock adjustments? Uses recorded after this file was saved may be overwritten.')) return;
+  } else if (!confirm('Back up the current file and replace it with the database values? Edits in the file are dropped.')) return;
+  const r = await api('/api/v1/inventory/excel-sync/resolve', {method:'POST', body: JSON.stringify({action, confirmed: true})});
+  alert('Result: ' + r.status + (r.backup ? ' (backup: ' + r.backup + ')' : ''));
+  document.getElementById('resolvePlan').innerHTML = ''; refresh();
 }
 if (token) refresh();
 </script></body></html>"""

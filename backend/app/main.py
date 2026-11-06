@@ -33,16 +33,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.inventory_xlsx_path is not None:
             from .services import excel_sync
 
+            observed: dict = {}
             c = connect(settings.database_path)
             try:  # export changes left pending by a crash / merge edits made while the server was down
                 excel_sync.sync_once(c, settings.inventory_xlsx_path, apply=settings.inventory_xlsx_auto_apply,
-                                     policy=settings.inventory_xlsx_merge_policy, auto=True)
+                                     policy=settings.inventory_xlsx_merge_policy, auto=True, observed=observed)
             except Exception:
                 log.exception("initial Excel sync failed")
             finally:
                 c.close()
             if settings.inventory_xlsx_poll_seconds > 0:
                 poller = excel_sync.Poller(settings, connect)
+                poller.observed = observed  # first poll compares against the startup stat (review X-5)
                 poller.start()
                 app_.state.excel_notify = poller.notify
         try:

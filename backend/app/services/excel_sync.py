@@ -45,7 +45,9 @@ TEXT_FIELDS = ("product_id", "barcode", "qr_value")
 _LOCKS: dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()
 _replace = os.replace  # indirection so tests can simulate a locked file
-KEEP_EXPORTS = 50       # newest successful exports whose snapshots stay usable as merge baselines
+KEEP_EXPORTS = 50       # newest successful exports whose snapshots stay usable as merge baselines ...
+KEEP_DAYS = 90          # ... OR every successful export younger than this (whichever keeps more; review R-1)
+KEEP_MAX_EXPORTS = 5000  # hard cap inside the 90-day window: beyond it keep the newest N + one per day
 KEEP_IMPORTS_PER_EXPORT = 5
 KEEP_EVENTS = 2000
 
@@ -92,6 +94,23 @@ def _norm(v):
 
 
 # ------------------------------------------------------------------ export
+def _pack(text: str) -> str:
+    """Snapshots are stored zlib-compressed (base64, 'z1:' prefix) to keep the 90-day window small."""
+    import base64
+    import zlib
+
+    return "z1:" + base64.b64encode(zlib.compress(text.encode("utf-8"), 9)).decode("ascii")
+
+
+def _unpack(stored: str) -> str:
+    if stored.startswith("z1:"):
+        import base64
+        import zlib
+
+        return zlib.decompress(base64.b64decode(stored[3:])).decode("utf-8")
+    return stored  # rows written before compression
+
+
 def _snapshot(conn):
     conn.execute("BEGIN")
     try:
@@ -139,10 +158,27 @@ def _stat(path: Path):
 
 
 def _retain(conn) -> None:
-    """Bounded storage: newest KEEP_EXPORTS exports + the export_id currently in the file."""
+    """Bounded storage: newest KEEP_EXPORTS exports, plus every export younger than KEEP_DAYS, plus the
+    export_id currently in the file. Snapshots are content-deduplicated, so the 90-day window costs one
+    snapshot per distinct stock state, not one per export."""
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=KEEP_DAYS)).isoformat(timespec="milliseconds")
     keep = {r["export_id"] for r in conn.execute(
         "SELECT export_id FROM excel_exports WHERE status = 'written' ORDER BY created_at DESC, rowid DESC LIMIT ?",
         (KEEP_EXPORTS,)).fetchall()}
+    window = [(r["export_id"], r["created_at"]) for r in conn.execute(
+        "SELECT export_id, created_at FROM excel_exports WHERE status = 'written' AND created_at >= ? "
+        "ORDER BY created_at DESC, rowid DESC", (cutoff,)).fetchall()]
+    if len(window) > KEEP_MAX_EXPORTS:  # busy server: newest N + the latest export of each older day
+        keep |= {eid for eid, _ in window[:KEEP_MAX_EXPORTS]}
+        days_seen: set = set()
+        for eid, created in window[KEEP_MAX_EXPORTS:]:
+            if created[:10] not in days_seen:
+                days_seen.add(created[:10])
+                keep.add(eid)
+    else:
+        keep |= {eid for eid, _ in window}
     for k in ("file_export_id", "last_export_id"):
         v = _get(conn, k)
         if v:
@@ -172,7 +208,7 @@ def export(conn, path: Path, reason: str = "change", observed: dict | None = Non
     # record the baseline BEFORE the file appears, so a crash cannot leave a file with an unknown export_id
     with write_transaction(conn):
         conn.execute("INSERT OR IGNORE INTO excel_snapshots(sha, snapshot_json, created_at) VALUES (?,?,?)",
-                     (snap_sha, snap_json, now))
+                     (snap_sha, _pack(snap_json), now))
         conn.execute("INSERT INTO excel_exports(export_id, path, change_seq, snapshot_sha, sha256, status, created_at) "
                      "VALUES (?,?,?,?,?, 'writing', ?)", (export_id, str(path), seq, snap_sha, sha, now))
     try:
@@ -294,10 +330,10 @@ def _baseline(conn, export_id: str | None) -> dict | None:
         return json.loads(imp["excel_snapshot_json"])
     exp = conn.execute("SELECT s.snapshot_json FROM excel_exports e JOIN excel_snapshots s ON s.sha = e.snapshot_sha "
                        "WHERE e.export_id = ?", (export_id,)).fetchone()
-    return json.loads(exp["snapshot_json"]) if exp else None
+    return json.loads(_unpack(exp["snapshot_json"])) if exp else None
 
 
-def plan_merge(conn, excel: dict, policy: str = "merge_delta") -> dict[str, Any]:
+def plan_merge(conn, excel: dict, policy: str = "merge_delta", base_override: dict | None = None) -> dict[str, Any]:
     """conflicts = cases where something would be lost or cannot be decided (negative merge, metadata
     changed on both sides, db_wins/excel_wins overrides). A merge_delta of two independent stock deltas
     keeps both and is listed in `merges` (safe)."""
@@ -306,7 +342,7 @@ def plan_merge(conn, excel: dict, policy: str = "merge_delta") -> dict[str, Any]
     if not excel["structure_ok"]:
         plan["blocked"] = "invalid_structure"
         return plan
-    base = _baseline(conn, excel["export_id"])
+    base = base_override if base_override is not None else _baseline(conn, excel["export_id"])
     if base is None:
         plan["blocked"] = "unknown_baseline (missing/unknown export_id: file not created by this server or _sync sheet removed)"
         return plan
@@ -476,7 +512,7 @@ def _apply(conn, plan: dict, file_sha: str, excel: dict) -> dict[str, Any]:
         _event(conn, "invalid_row", bad.get("product_id"), bad)
     snapshot = {pid: {k: v for k, v in r.items() if k != "_row"} for pid, r in excel["rows"].items()}
     result = {"applied": applied, "conflicts": len(plan["conflicts"]), "invalid": len(plan["invalid"])}
-    conn.execute("INSERT INTO excel_imports(export_id, file_sha256, excel_snapshot_json, result_json, applied_at) VALUES (?,?,?,?,?)",
+    conn.execute("INSERT OR IGNORE INTO excel_imports(export_id, file_sha256, excel_snapshot_json, result_json, applied_at) VALUES (?,?,?,?,?)",
                  (plan["export_id"], file_sha, json.dumps(snapshot, ensure_ascii=False), json.dumps(result), now))
     return result
 
@@ -500,7 +536,10 @@ def conflict_copies(path: Path) -> list[str]:
 
 
 def lock_file_present(path: Path) -> bool:
-    return (path.parent / ("~$" + path.name)).exists() or (path.parent / ("~$" + path.name[2:])).exists()
+    """Excel: `~$name.xlsx` (long names: first 2 chars replaced). LibreOffice: `.~lock.name.xlsx#`."""
+    d = path.parent
+    return ((d / ("~$" + path.name)).exists() or (d / ("~$" + path.name[2:])).exists()
+            or (d / f".~lock.{path.name}#").exists())
 
 
 def _note_problem(conn, kind: str, sha: str, **detail) -> None:
@@ -528,10 +567,10 @@ def sync_once(conn, path: Path, *, apply: bool, policy: str = "merge_delta", req
                 res["status"] = "deferred_locked_by_excel"
                 return _finish(conn, res, dry_run)
             stat = _stat(path)
-            if require_stable and observed is not None:
+            if observed is not None:
                 prev = observed.get(str(path))
-                observed[str(path)] = stat
-                if prev != stat:
+                observed[str(path)] = stat  # also on the startup sync, so the first poll is not "unstable" (X-5)
+                if require_stable and prev != stat:
                     res["status"] = "deferred_unstable"
                     return _finish(conn, res, dry_run)
             sha = _sha(path)
@@ -656,6 +695,7 @@ def status(conn, path: Path | None, settings) -> dict[str, Any]:
         state = "ok_with_rejected_rows"
     return {
         "enabled": True, "path": str(path), "exists": Path(path).exists(), "state": state,
+        "reason_text": reason_text(state, last_res or {}, is_pending(conn)),
         "pending_export": is_pending(conn),
         "change_seq": int(_get(conn, "change_seq", "0")), "exported_seq": int(_get(conn, "exported_seq", "0")),
         "pending_reason": _get(conn, "pending_reason") or None,
@@ -668,6 +708,104 @@ def status(conn, path: Path | None, settings) -> dict[str, Any]:
         "stored": {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
                    for t in ("excel_exports", "excel_snapshots", "excel_imports", "excel_sync_events")},
     }
+
+
+def reason_text(state: str, last: dict, pending: bool) -> str:
+    """One Korean sentence for people (admin page / HUD)."""
+    counts = last.get("plan_counts") or {}
+    if state == "ok":
+        return "Excel 파일과 데이터베이스가 일치합니다."
+    if state == "ok_with_rejected_rows":
+        return f"반영했지만 {counts.get('invalid', 0)}개 행은 오류로 제외했습니다. 관리 화면에서 확인하세요."
+    if state == "pending_locked":
+        return "Excel 파일이 열려 있어(잠금) 저장을 미뤘습니다. 파일을 닫으면 자동으로 저장합니다."
+    if state == "waiting":
+        return "파일이 동기화 중이거나 바뀌는 중이라 잠시 후 다시 확인합니다."
+    if state == "needs_review":
+        return (f"Excel 수정 중 자동 반영할 수 없는 항목이 있습니다(충돌 {counts.get('conflicts', 0)}, 오류 "
+                f"{counts.get('invalid', 0)}). 관리 화면에서 확인 후 반영하세요. 그동안 재고 변경은 서버에 저장되고"
+                + (" Excel 저장은 보류 중입니다." if pending else " 있습니다."))
+    if state == "blocked":
+        b = str(last.get("blocked") or "")
+        if b.startswith("unknown_baseline"):
+            return ("이 Excel 파일이 언제 내보낸 것인지 알 수 없어(기준 스냅숏 없음: 아주 오래된 사본이거나 _sync 시트가 "
+                    "지워짐) 자동 병합을 멈췄습니다. 관리 화면에서 '파일 수정 버리고 다시 내보내기' 또는 '파일 값 반영'을 "
+                    "선택하세요.")
+        return "Excel 파일 구조가 올바르지 않아(inventory 시트·열 이름) 동기화를 멈췄습니다."
+    if state == "error":
+        return "동기화 중 예상하지 못한 오류가 났습니다. 관리 화면의 마지막 오류를 확인하세요."
+    if state == "disabled":
+        return "Excel 동기화가 꺼져 있습니다(INVENTORY_XLSX_PATH 미설정)."
+    return "아직 동기화 기록이 없습니다."
+
+
+RESOLVE_ACTIONS = ("discard_file", "apply_file_values")
+
+
+def resolve(conn, path: Path, action: str, *, confirmed: bool, backup_dir: Path, dry_run: bool = False) -> dict[str, Any]:
+    """Explicit operator actions for a file the safe merge cannot handle (review R-1).
+
+    discard_file: back up the current file, then export the DB values over it (the file's edits are dropped).
+    apply_file_values: treat every valid row of the file as the intended absolute value (baseline = current DB),
+      record differences as 'adjust' transactions, then export. dry_run shows the plan first."""
+    if action not in RESOLVE_ACTIONS:
+        raise ApiError(422, errors.VALIDATION_ERROR, f"action must be one of {RESOLVE_ACTIONS}")
+    if not dry_run:
+        check_confirmed(confirmed)
+    path = Path(path)
+    with path_lock(path):
+        res: dict[str, Any] = {"at": utcnow(), "path": str(path), "action": action, "warnings": []}
+        if action == "discard_file":
+            if dry_run:
+                res.update(status="preview", message="The file will be backed up and replaced by the database values.")
+                return res
+            backup = None
+            if path.exists():
+                import shutil
+
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                stamp = utcnow().replace(":", "").replace("-", "")[:15]
+                backup = backup_dir / f"{path.stem}-discarded-{stamp}-{uuid.uuid4().hex[:6]}{path.suffix}"
+                shutil.copy2(path, backup)
+            res["backup"] = str(backup) if backup else None
+            res["export"] = export(conn, path, reason="discard_file")
+            res["status"] = "exported" if res["export"]["status"] == "exported" else "pending_locked"
+            with write_transaction(conn):
+                _event(conn, "file_edits_discarded", None, backup=res["backup"])
+                if res["status"] == "exported":
+                    _set(conn, "last_problem", "")
+            return _finish(conn, res, False)
+        if not path.exists():
+            raise ApiError(404, errors.NOT_FOUND, "Excel file not found")
+        try:
+            excel = read_workbook(path)
+        except TransientRead as exc:
+            raise ApiError(409, "EXCEL_FILE_BUSY", f"File is being written or synced ({exc}); retry shortly")
+        if not excel["structure_ok"]:
+            raise ApiError(409, "EXCEL_STRUCTURE_INVALID", "Sheet 'inventory' with product_id/stock_qty is required",
+                           {"invalid": excel["invalid"][:20]})
+        sha = _sha(path)
+
+        def plan_now():
+            db_base = {r["product_id"]: {f: r[f] for f in FIELDS} for r in conn.execute("SELECT * FROM products").fetchall()}
+            p = plan_merge(conn, excel, "excel_wins", base_override=db_base)
+            p["export_id"] = excel["export_id"] or f"manual-{uuid.uuid4().hex}"
+            return p
+
+        if dry_run:
+            res.update(status="preview", plan=plan_now())
+            return res
+        with write_transaction(conn):
+            plan = plan_now()
+            res["plan"] = plan
+            res["merge"] = _apply(conn, plan, sha, excel)
+            _event(conn, "file_values_applied", None, file_sha=sha, applied=res["merge"]["applied"])
+        res["export"] = export(conn, path, reason="apply_file_values")
+        res["status"] = "merged_and_exported" if res["export"]["status"] == "exported" else "pending_locked"
+        if res["status"] == "merged_and_exported":
+            with write_transaction(conn):
+                _set(conn, "last_problem", "")
+        return _finish(conn, res, False)
 
 
 def require_enabled(settings) -> Path:
