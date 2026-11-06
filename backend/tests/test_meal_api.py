@@ -61,8 +61,8 @@ def test_full_pipeline_auto_regions_and_nutrition(meal):
     assert rice["kcal"] == pytest.approx(150 * rice["estimated_consumed_grams"] / 100, abs=0.2)
     assert rice["source"] == "DEMO_MOCK" and rice["is_demo"]
     assert foods["김치"]["estimated_consumed_grams"] is None and foods["김치"]["kcal"] is None
-    # exact alias match now prefers the cross-checked public MFDS row over the DEMO row
-    assert foods["계란"]["source"] == "MFDS_STD_DATA" and foods["계란"]["is_demo"] is False
+    # '계란' is a generic word: it matches the DEMO row by name (flagged), the raw-egg MFDS row is only a candidate
+    assert foods["계란"]["source"] == "DEMO_MOCK" and foods["계란"]["is_demo"] is True
     assert res["totals_complete"] is False
     # results endpoint returns the stored analysis; session status updated
     assert client.get(f"/api/v1/meals/{sid}/results").json()["analysis_id"] == res["analysis_id"]

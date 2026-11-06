@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS meal_log_items (
     unit               TEXT,
     grams              REAL,
     grams_basis        TEXT NOT NULL CHECK (grams_basis IN ('stated', 'serving_size', 'analysis', 'unknown')),
+    volume_ml          REAL,               -- 1인분 volume for 100 mL-basis foods (never converted to g)
     kcal_per_100g      REAL,
     carbs_g_per_100g   REAL,
     protein_g_per_100g REAL,
@@ -259,5 +260,10 @@ MIGRATION_COLUMNS = {
         ("source_url", "TEXT"),
         ("retrieved_at", "TEXT"),
         ("verification", "TEXT NOT NULL DEFAULT 'demo_mock'"),
+        ("serving_size_ml", "REAL"),
+        ("micro_verification", "TEXT"),
+    ],
+    "meal_log_items": [
+        ("volume_ml", "REAL"),
     ],
 }

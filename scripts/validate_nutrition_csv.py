@@ -18,9 +18,9 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERIFICATION = {"mirror_cross_checked", "single_mirror", "official_file_import", "web_transcribed", "demo_mock"}
+VERIFICATION = {"mirror_cross_checked", "single_mirror", "official_file_import", "web_transcribed", "legacy_api", "demo_mock"}
 NUM = ("kcal_per_100g", "carbs_g_per_100g", "protein_g_per_100g", "fat_g_per_100g", "sugars_g_per_100g",
-       "sodium_mg_per_100g", "serving_size_g")
+       "sodium_mg_per_100g", "serving_size_g", "serving_size_ml")
 
 
 def allowed(url: str) -> bool:
@@ -62,6 +62,16 @@ def validate_row(r: dict) -> list[str]:
             vals[k] = None
         if vals[k] is not None and vals[k] < 0:
             errs.append(f"{k} negative")
+    basis = (r.get("basis") or "").strip().lower().replace(" ", "")
+    if basis and basis not in ("100g", "100ml"):
+        errs.append(f"basis must be 100g or 100ml, got {r.get('basis')!r}")
+    if basis == "100ml":
+        if any(vals[k] is not None for k in NUM[:6]):
+            errs.append("basis 100ml: per-100 g values must be empty (no mL->g conversion)")
+        if vals["serving_size_g"] is not None:
+            errs.append("basis 100ml: serving_size_g must be empty (use serving_size_ml)")
+    if basis == "100g" and vals["serving_size_ml"] is not None:
+        errs.append("basis 100g: serving_size_ml must be empty")
     if ver == "web_transcribed":
         quote = r.get("source_quote") or ""
         for k in NUM[:4]:
@@ -90,6 +100,9 @@ def validate_file(path: Path) -> list[tuple[str, list[str]]]:
 
 def main(argv=None) -> int:
     paths = [Path(p) for p in (argv if argv is not None else sys.argv[1:])]
+    if not paths:
+        print("usage: python scripts/validate_nutrition_csv.py FILE.csv [FILE.csv ...]", file=sys.stderr)
+        return 2
     total_fail = 0
     for p in paths:
         fails = validate_file(p)

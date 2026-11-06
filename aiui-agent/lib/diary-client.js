@@ -43,8 +43,11 @@ export function shiftDate(iso, days) {
 }
 
 export function itemLine(i, t) {
-  const amount = i.grams !== null && i.grams !== undefined ? Math.round(i.grams) + 'g' : t.gramsUnknown;
-  const kcal = i.kcal !== null && i.kcal !== undefined ? Math.round(i.kcal) + 'kcal' : t.kcalUnknown;
+  // 100 mL-basis foods show mL, never grams (no mL->g conversion)
+  const has = (v) => v !== null && v !== undefined;
+  const amount = has(i.grams) ? Math.round(i.grams) + 'g' : (has(i.volume_ml) ? Math.round(i.volume_ml) + 'mL' : t.gramsUnknown);
+  // reference-based kcal is always an estimate
+  const kcal = has(i.kcal) ? Math.round(i.kcal) + 'kcal ' + t.estimate : t.kcalUnknown;
   const tag = i.ref_is_demo ? ' [' + t.demo + ']' : (i.nutrition_ref_id ? '' : ' ?');
-  return i.food_name + ' · ' + amount + ' · ' + kcal + (i.is_estimate ? ' ' + t.estimate : '') + tag;
+  return i.food_name + ' · ' + amount + ' · ' + kcal + tag;
 }

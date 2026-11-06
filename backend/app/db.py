@@ -42,6 +42,8 @@ def migrate(conn: sqlite3.Connection) -> list[str]:
             if name not in existing:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
                 added.append(f"{table}.{name}")
+    # v1 non-DEMO rows (e.g. MFDS_API) got the column default 'demo_mock' -> keep them ranked above DEMO (review M-1)
+    conn.execute("UPDATE nutrition_references SET verification = 'legacy_api' WHERE is_demo = 0 AND verification = 'demo_mock'")
     return added
 
 

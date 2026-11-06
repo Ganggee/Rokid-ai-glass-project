@@ -41,23 +41,31 @@ def compute_item(conn: sqlite3.Connection, item: dict[str, Any]) -> dict[str, An
     qty = item.get("quantity")
     unit = item.get("unit")
     grams = item.get("grams")
-    basis, reason = "unknown", None
+    basis, reason, volume_ml = "unknown", None, None
+    unit_ok = unit is None or (ref is not None and ref.get("serving_unit") and UNIT_EQUIV.get(unit) == ref.get("serving_unit"))
+    ml_basis = ref is not None and (ref.get("basis") or "").lower().replace(" ", "") == "100ml"
+    if ml_basis and ref.get("serving_size_ml") and unit_ok:
+        volume_ml = round((qty if qty else 1) * ref["serving_size_ml"], 1)  # shown as mL, never as g (review N-3)
     if grams is not None:
         if grams <= 0 or grams > 5000:
             raise ApiError(422, errors.VALIDATION_ERROR, "grams must be in (0, 5000]")
         basis = "stated"
+        if ml_basis:
+            reason = "volume_basis (reference values are per 100 mL; grams are not converted)"
+    elif ml_basis:
+        reason = "volume_basis (reference values are per 100 mL; mL is not converted to g)"
     elif ref is None:
         reason = "no_exact_nutrition_match"
     elif not ref.get("serving_size_g"):
         reason = "reference_has_no_serving_size"
-    elif unit is None or (ref.get("serving_unit") and UNIT_EQUIV.get(unit) == ref.get("serving_unit")):
+    elif unit_ok:
         grams = (qty if qty else 1) * ref["serving_size_g"]
         basis = "serving_size"
     else:
         reason = f"unit_mismatch ({unit} vs reference {ref.get('serving_unit') or 'unitless'} serving)"
     per = {k: (ref.get(k) if ref else None) for k in ("kcal_per_100g", "carbs_g_per_100g", "protein_g_per_100g", "fat_g_per_100g")}
     vals = {"kcal": None, "carbs_g": None, "protein_g": None, "fat_g": None}
-    if grams is not None and ref is not None:
+    if grams is not None and ref is not None and not ml_basis:
         if per["kcal_per_100g"] is None:
             reason = reason or f"no_per_100g_value (basis {ref.get('basis') or 'unknown'})"
         for out_k, per_k in (("kcal", "kcal_per_100g"), ("carbs_g", "carbs_g_per_100g"),
@@ -76,9 +84,11 @@ def compute_item(conn: sqlite3.Connection, item: dict[str, Any]) -> dict[str, An
         "quantity": qty, "unit": unit,
         "grams": round(grams, 1) if grams is not None else None,
         "grams_basis": basis,
+        "volume_ml": volume_ml,
         **per, **vals,
         "null_reason": reason if vals["kcal"] is None else None,
-        "is_estimate": basis != "stated" or bool(ref and ref["is_demo"]),
+        # nutrient values come from reference tables -> always an estimate, even when grams were stated (review D-1)
+        "is_estimate": True,
         "candidates": [{"id": c["id"], "food_name": c["food_name"], "verification": c["verification"],
                         "is_demo": c["is_demo"]} for c in candidates[:3]],
     }
@@ -116,13 +126,14 @@ def _insert_items(conn, log_id: str, items: list[dict]) -> None:
         conn.execute(
             """INSERT INTO meal_log_items(id, log_id, position, food_name, spoken_text, nutrition_ref_id, ref_source,
                ref_verification, ref_is_demo, quantity, unit, grams, grams_basis, kcal_per_100g, carbs_g_per_100g,
-               protein_g_per_100g, fat_g_per_100g, kcal, carbs_g, protein_g, fat_g, null_reason, is_estimate)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               protein_g_per_100g, fat_g_per_100g, kcal, carbs_g, protein_g, fat_g, null_reason, is_estimate, volume_ml)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (uuid.uuid4().hex, log_id, pos, it["food_name"], it.get("spoken_text"), it.get("nutrition_ref_id"),
              it.get("ref_source"), it.get("ref_verification"), 1 if it.get("ref_is_demo") else 0, it.get("quantity"),
              it.get("unit"), it.get("grams"), it["grams_basis"], it.get("kcal_per_100g"), it.get("carbs_g_per_100g"),
              it.get("protein_g_per_100g"), it.get("fat_g_per_100g"), it.get("kcal"), it.get("carbs_g"),
-             it.get("protein_g"), it.get("fat_g"), it.get("null_reason"), 1 if it.get("is_estimate") else 0))
+             it.get("protein_g"), it.get("fat_g"), it.get("null_reason"), 1 if it.get("is_estimate") else 0,
+             it.get("volume_ml")))
 
 
 def get_log(conn, log_id: str) -> dict[str, Any]:
@@ -236,7 +247,7 @@ def summary(conn, log_date: str, meal_type: str | None = None) -> dict[str, Any]
     totals = {k: _sum(i[k] for i in items) for k in ("kcal", "carbs_g", "protein_g", "fat_g")}
     complete = bool(items) and all(i["kcal"] is not None for i in items)
     has_demo = any(i["ref_is_demo"] for i in items)
-    is_estimate = any(i["is_estimate"] for i in items)
+    is_estimate = bool(items)  # reference-based kcal is always an estimate
     d = date.fromisoformat(log_date)
     head = f"{d.month}월 {d.day}일"
     meals = []
@@ -251,7 +262,7 @@ def summary(conn, log_date: str, meal_type: str | None = None) -> dict[str, Any]
         if totals["kcal"] is None:
             s2 = "열량은 미상입니다."
         else:
-            s2 = f"총 약 {round(totals['kcal'])}킬로칼로리, {'추정' if is_estimate else '입력값'}"
+            s2 = f"총 약 {round(totals['kcal'])}킬로칼로리, 추정"
             s2 += ("" if complete else ", 일부 열량 미상") + (", DEMO 포함" if has_demo else "") + "입니다."
         names = [i["food_name"] for i in items]
         s3 = ", ".join(names[:3]) + (f" 외 {len(names) - 3}개." if len(names) > 3 else ".")
@@ -261,9 +272,16 @@ def summary(conn, log_date: str, meal_type: str | None = None) -> dict[str, Any]
             speech = " ".join([s1, s2, s3])
         if len(speech) > 150:
             speech = speech[:149] + "…"
+        def amount(i):
+            if i.get("grams") is not None:
+                return f"{round(i['grams'])}g "
+            if i.get("volume_ml") is not None:
+                return f"{round(i['volume_ml'])}mL "
+            return ""
+
         lines = [f"{lg['meal_label']}: " + ", ".join(
-            f"{i['food_name']} {('%dkcal' % round(i['kcal'])) if i['kcal'] is not None else '미상'}" for i in lg["items"])
-            for lg in logs]
+            f"{i['food_name']} {amount(i)}{('약 %dkcal(추정)' % round(i['kcal'])) if i['kcal'] is not None else '열량 미상'}"
+            for i in lg["items"]) for lg in logs]
     return {"date": log_date, "meal_type": meal_type, "logs": logs, "totals": totals, "totals_complete": complete,
             "has_demo": has_demo, "is_estimate": is_estimate, "speech_text": speech, "display_lines": lines,
             "disclaimer": "Estimates for a technical PoC; not a clinical dietary record."}

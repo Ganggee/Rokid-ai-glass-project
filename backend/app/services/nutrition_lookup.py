@@ -26,10 +26,11 @@ from typing import Any, Iterable
 from ..db import utcnow, write_transaction
 
 VERIFICATION_RANK = {"official_file_import": 0, "mirror_cross_checked": 1, "single_mirror": 2,
-                     "web_transcribed": 3, "demo_mock": 9}
+                     "web_transcribed": 3, "legacy_api": 4, "demo_mock": 9}
 COLUMNS = ("id", "food_name", "aliases", "category", "kcal_per_100g", "carbs_g_per_100g", "protein_g_per_100g",
-           "fat_g_per_100g", "sugars_g_per_100g", "sodium_mg_per_100g", "serving_size_g", "serving_unit", "basis",
-           "food_code", "source", "source_url", "source_detail", "retrieved_at", "verification", "is_demo")
+           "fat_g_per_100g", "sugars_g_per_100g", "sodium_mg_per_100g", "serving_size_g", "serving_size_ml", "serving_unit",
+           "basis", "food_code", "source", "source_url", "source_detail", "retrieved_at", "verification",
+           "micro_verification", "is_demo")
 
 # Short list shown first on the glasses when labelling food regions (cycling through 170 names is unusable).
 HUD_PRIORITY = ["쌀밥", "잡곡밥", "현미밥", "배추김치", "깍두기", "달걀말이", "달걀(생것)", "삶은달걀", "된장찌개",
@@ -39,7 +40,9 @@ HUD_PRIORITY = ["쌀밥", "잡곡밥", "현미밥", "배추김치", "깍두기",
 
 def _row(r: sqlite3.Row) -> dict[str, Any]:
     d = {k: r[k] for k in r.keys()}
-    d["aliases"] = [a for a in (d.get("aliases") or "").split(";") if a]
+    al = [a for a in (d.get("aliases") or "").split(";") if a]
+    d["aliases"] = [a for a in al if not a.startswith("~")]
+    d["suggest_aliases"] = [a[1:] for a in al if a.startswith("~")]
     d["is_demo"] = bool(d["is_demo"])
     d.pop("updated_at", None)
     return d
@@ -71,7 +74,8 @@ def upsert_rows(conn: sqlite3.Connection, rows: Iterable[dict[str, Any]]) -> int
                 "kcal_per_100g": _float(rec.get("kcal_per_100g")), "carbs_g_per_100g": _float(rec.get("carbs_g_per_100g")),
                 "protein_g_per_100g": _float(rec.get("protein_g_per_100g")), "fat_g_per_100g": _float(rec.get("fat_g_per_100g")),
                 "sugars_g_per_100g": _float(rec.get("sugars_g_per_100g")), "sodium_mg_per_100g": _float(rec.get("sodium_mg_per_100g")),
-                "serving_size_g": _float(rec.get("serving_size_g")), "serving_unit": rec.get("serving_unit") or None,
+                "serving_size_g": _float(rec.get("serving_size_g")), "serving_size_ml": _float(rec.get("serving_size_ml")),
+                "serving_unit": rec.get("serving_unit") or None, "micro_verification": rec.get("micro_verification") or None,
                 "basis": rec.get("basis") or None, "food_code": rec.get("food_code") or None,
                 "source": rec.get("source") or "UNKNOWN", "source_url": rec.get("source_url") or None,
                 "source_detail": rec.get("source_detail") or None, "retrieved_at": rec.get("retrieved_at") or None,
@@ -135,18 +139,20 @@ def hud_label_options(conn: sqlite3.Connection, limit: int = 20) -> list[dict[st
     return out[:limit]
 
 
-def _names(r) -> list[str]:
-    return [r["food_name"]] + [a for a in (r["aliases"] or "").split(";") if a]
+def _names(r, auto_only: bool = False) -> list[str]:
+    al = [a for a in (r["aliases"] or "").split(";") if a]
+    if auto_only:
+        return [r["food_name"]] + [a for a in al if not a.startswith("~")]
+    return [r["food_name"]] + [a.lstrip("~") for a in al]
 
 
 def match(conn: sqlite3.Connection, label: str, limit: int = 5) -> dict[str, Any]:
     """{"exact": ref|None, "candidates": [ref...]} — only exact name/alias matches are automatic."""
     q = _norm(label)
     rows = conn.execute("SELECT * FROM nutrition_references").fetchall()
-    exact = [r for r in rows if any(_norm(n) == q for n in _names(r))]
-    if exact:
-        ranked = _ranked(exact)
-        return {"exact": _row(ranked[0]), "candidates": [_row(r) for r in ranked[1:limit]]}
+    exact = _ranked([r for r in rows if any(_norm(n) == q for n in _names(r, auto_only=True))])
+    # generic words ('~alias', e.g. 된장국 -> 호박된장국) are offered first but never auto-matched (review N-4)
+    suggested = _ranked([r for r in rows if any(_norm(n) == q for n in _names(r))])
     scored = []
     for r in rows:
         best = 0.0
@@ -162,7 +168,13 @@ def match(conn: sqlite3.Connection, label: str, limit: int = 5) -> dict[str, Any
         if best >= 0.5:
             scored.append((best, VERIFICATION_RANK.get(r["verification"], 5), r))
     scored.sort(key=lambda t: (-t[0], t[1]))
-    return {"exact": None, "candidates": [_row(r) for _, _, r in scored[:limit]]}
+    chosen = exact[0] if exact else None
+    cands, seen = [], {chosen["id"]} if chosen else set()
+    for r in list(exact[1:]) + list(suggested) + [r for _, _, r in scored]:
+        if r["id"] not in seen:
+            seen.add(r["id"])
+            cands.append(r)
+    return {"exact": _row(chosen) if chosen else None, "candidates": [_row(r) for r in cands[:limit]]}
 
 
 def search_local(conn: sqlite3.Connection, query: str, limit: int = 10) -> list[dict[str, Any]]:

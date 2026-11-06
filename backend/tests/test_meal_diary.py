@@ -92,8 +92,10 @@ def test_gram_policy(conn):
     assert two["grams"] == 2 * ref["serving_size_g"]
     mismatch = meal_diary.compute_item(conn, {"name": "쌀밥", "quantity": 1, "unit": "공기"})
     assert mismatch["grams"] is None and mismatch["kcal"] is None and "unit_mismatch" in mismatch["null_reason"]
-    ml = meal_diary.compute_item(conn, {"name": "라면"})  # 100 mL basis: grams known, kcal withheld
-    assert ml["grams"] is not None and ml["kcal"] is None and "no_per_100g_value" in ml["null_reason"]
+    ml = meal_diary.compute_item(conn, {"name": "탕수육"})  # 100 mL basis: volume in mL, no grams, kcal withheld
+    assert ml["grams"] is None and ml["volume_ml"] == 343 and ml["kcal"] is None and "volume_basis" in ml["null_reason"]
+    stated = meal_diary.compute_item(conn, {"name": "쌀밥", "grams": 210})
+    assert stated["is_estimate"] is True  # stated grams, but kcal comes from a reference table (review D-1)
     unknown = meal_diary.compute_item(conn, {"name": "참치김밥"})
     assert unknown["nutrition_ref_id"] is None and unknown["kcal"] is None and unknown["candidates"]
 

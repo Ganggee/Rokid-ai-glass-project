@@ -21,8 +21,9 @@ def test_bundled_csvs_pass_validator():
 
 def test_public_rows_have_provenance_and_cross_check_majority():
     rows = list(csv.DictReader(PUBLIC.open(encoding="utf-8")))
-    assert len(rows) >= 150
-    assert all(r["source"] == "MFDS_STD_DATA" and r["source_url"].startswith("https://www.data.go.kr/") for r in rows)
+    assert len(rows) >= 100  # rows without mirror agreement are excluded, not filled (review N-1)
+    assert all((r["source"], r["source_url"]) in {("MFDS_FOOD_DB", "https://www.data.go.kr/data/15100070/standard.do"),
+                                                  ("RDA_NFCDB_10.4", "https://www.nics.go.kr/food")} for r in rows)
     assert all("@" in r["source_detail"] for r in rows)  # mirror repo@commit recorded
     checked = sum(r["verification"] == "mirror_cross_checked" for r in rows)
     assert checked / len(rows) > 0.8
@@ -91,3 +92,115 @@ def test_official_import_outranks_mirror(conn):
     nl.upsert_rows(conn, [{"id": "MFDS-OFFICIAL-X", "food_name": "쌀밥", "kcal_per_100g": 160, "source": "MFDS_STD_DATA",
                            "verification": "official_file_import", "is_demo": 0}])
     assert nl.resolve_label(conn, "쌀밥")["id"] == "MFDS-OFFICIAL-X"
+
+
+# ---------------------------------------------------------------- review 02 regressions
+CONTRADICTED = {"부대찌개": 67, "추어탕": 32, "소불고기": 170, "깍두기": 33, "햄버거": 284, "볶음밥": 183, "순대": 181}
+
+
+def _rows():
+    return {r["food_name"]: r for r in csv.DictReader(PUBLIC.open(encoding="utf-8"))}
+
+
+def test_n1_rows_contradicting_official_code_rows_are_not_bundled():
+    rows = _rows()
+    for name, official_kcal in CONTRADICTED.items():
+        r = rows.get(name)
+        assert r is None or (r["kcal_per_100g"] and abs(float(r["kcal_per_100g"]) - official_kcal) <= 1), (name, r)
+
+
+def test_n1_report_lists_exclusions_and_cross_check_meaning():
+    import json
+
+    rep = json.loads((ROOT / "sample-data" / "nutrition_reference_public.report.json").read_text(encoding="utf-8"))
+    excluded = {e["name"] for e in rep["excluded_disagreement"]}
+    assert {"부대찌개", "추어탕", "소불고기", "깍두기", "햄버거", "볶음밥", "순대"} <= excluded
+    assert rep["cross_checked"] + rep["single_mirror"] == rep["bundled_rows"]
+
+
+def test_n1_select_rules_unit():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import build_nutrition_reference as b
+
+    def row(m, basis, kcal, carb=10.0, p=2.0, fat=1.0, scaled=False, code=None):
+        return {"mirror": m, "basis": basis, "kcal": kcal, "carb": carb, "protein": p, "fat": fat, "serving": 100.0,
+                "scaled": scaled, "code": code}
+
+    # official-code anchor; one mirror only has a different value -> excluded (no consensus)
+    d = b.select({"toadsam": [row("toadsam", "100g", 123)], "healthlog": [row("healthlog", "100g", 67, scaled=True, code="D1")],
+                  "carb": [], "kangsogo7": [row("kangsogo7", None, 67)]})
+    assert d["status"] == "excluded"
+    # 100 g preferred over 100 mL; the mL row of another mirror is not a vote
+    d = b.select({"toadsam": [row("toadsam", "100ml", 120)], "healthlog": [row("healthlog", "100g", 172, scaled=True, code="D2")],
+                  "carb": [row("carb", None, 172)], "kangsogo7": [row("kangsogo7", None, 120), row("kangsogo7", None, 172)]})
+    assert d["status"] == "ok" and d["basis"] == "100g" and d["values"]["kcal"] == 172 and d["verification"] == "mirror_cross_checked"
+    # same-name variants in one mirror: one matching row is enough for THAT mirror, every comparable mirror must match
+    d = b.select({"toadsam": [row("toadsam", "100g", 61)], "carb": [row("carb", None, 61)],
+                  "kangsogo7": [row("kangsogo7", None, 19), row("kangsogo7", None, 61)], "healthlog": []})
+    assert d["status"] == "ok" and d["agree"] == ["carb", "kangsogo7"]
+    d = b.select({"toadsam": [row("toadsam", "100g", 50)], "carb": [], "kangsogo7": [], "healthlog": []})
+    assert d["status"] == "ok" and d["verification"] == "single_mirror"
+
+
+def test_n2_staples_have_100g_values():
+    rows = _rows()
+    for name in ("현미밥", "잡곡밥", "비빔밥", "라면", "짬뽕", "멸치볶음", "쌀밥", "김밥", "김치찌개"):
+        r = rows[name]
+        assert r["basis"] == "100g" and r["kcal_per_100g"] != "", name
+    assert rows["현미밥"]["food_code"] == "D101-050000000-0001" and float(rows["현미밥"]["kcal_per_100g"]) == 172
+
+
+def test_n3_ml_basis_rows_keep_serving_in_ml_only():
+    rows = _rows()
+    ml = [r for r in rows.values() if r["basis"] == "100ml"]
+    assert ml and all(r["serving_size_g"] == "" and r["kcal_per_100g"] == "" for r in ml)
+    assert rows["탕수육"]["serving_size_ml"] == "343"
+
+
+def test_n3_ml_serving_is_never_shown_or_computed_as_grams(conn):
+    from backend.app.services import meal_diary
+
+    it = meal_diary.compute_item(conn, {"name": "탕수육"})
+    assert it["grams"] is None and it["kcal"] is None and it["volume_ml"] == 343
+    assert "volume_basis" in it["null_reason"]
+    it2 = meal_diary.compute_item(conn, {"name": "탕수육", "grams": 200})  # stated grams of a mL-basis food
+    assert it2["grams"] == 200 and it2["kcal"] is None
+
+
+def test_n4_generic_alias_is_candidate_only(conn):
+    for word, target in (("된장국", "호박된장국"), ("김", "조미김"), ("고구마", "고구마(생것)"), ("계란", "달걀(생것)"), ("빵", "식빵")):
+        m = nl.match(conn, word)
+        auto = m["exact"]
+        assert auto is None or auto["is_demo"], (word, auto and auto["food_name"])
+        assert any(c["food_name"] == target for c in m["candidates"]), (word, [c["food_name"] for c in m["candidates"]])
+    assert nl.resolve_label(conn, "삶은계란")["food_name"] == "삶은달걀"  # true synonym stays automatic
+    assert nl.resolve_label(conn, "공기밥")["food_name"] == "쌀밥"
+
+
+def test_n6_validator_without_args_is_usage_error_and_checks_basis():
+    assert val.main([]) == 2
+    bad = {"id": "X", "food_name": "x", "source": "S", "verification": "single_mirror", "is_demo": "0",
+           "source_url": "https://www.data.go.kr/x", "retrieved_at": "2026-11-06", "basis": "100ml",
+           "kcal_per_100g": "50", "serving_size_g": "300"}
+    errs = " | ".join(val.validate_row(bad))
+    assert "100ml" in errs and "serving_size_g" in errs
+
+
+def test_m1_migration_keeps_legacy_non_demo_rows_ranked(tmp_path):
+    import sqlite3
+
+    from backend.app.db import connect, init_db
+    from backend.app.models import SCHEMA
+
+    p = tmp_path / "v1.sqlite3"
+    c = sqlite3.connect(p)
+    v1 = SCHEMA.split("-- ---------------------------------------------------------------- meal diary")[0]
+    c.executescript(v1)
+    c.execute("INSERT INTO nutrition_references(id, food_name, kcal_per_100g, source, is_demo, updated_at) "
+              "VALUES ('MFDS-API-1', '테스트', 100, 'MFDS_API', 0, 'x')")
+    c.commit()
+    c.close()
+    conn = connect(p)
+    init_db(conn)
+    init_db(conn)
+    assert nl.get_reference(conn, "MFDS-API-1")["verification"] == "legacy_api"
