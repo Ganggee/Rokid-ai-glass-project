@@ -65,3 +65,12 @@ All iteration-1 tests stay green; new unit/API tests per feature; AIUI validator
   `change_seq`, atomic replace, lock/unstable/truncated/conflict-copy handling, poller in FastAPI lifespan,
   `merge_delta` default, AUTO_APPLY opt-in. LOCAL mode (glasses JSON in wx storage) has no Excel sync.
 - Deviations from the advisor rubric: see the coder report in the PR description.
+
+## Deviations from the advisor rubric (tracked in-repo; review 02 NIT-2)
+| Rubric / plan item | What was done | Why |
+|---|---|---|
+| 영양 행 150~400, cross-check by 식품코드 | 124 rows; matched by food name + kcal/C/P/F, official 식품코드 only where health-log has it (37 rows) | mirrors other than health-log carry no 식품코드; rows without agreement are excluded, not filled |
+| "conflict 하나라도 있으면 자동 반영 중지" | `merge_delta` of two independent stock deltas is classified as a `merge` (both kept), not a conflict; negative merges, metadata both-changed and db_wins/excel_wins overrides are conflicts | stopping on every simultaneous restock + use would block normal continuous use; nothing is lost in a merge |
+| soak "재기동 5+" | in-process reconnect ×6 per run + a real-app poller/HTTP test + crash-recovery test | OS-level process restarts inside one test run are slow and flaky in CI |
+| Excel 수식 보존 | not preserved; formula cells reported invalid | out of scope (advisor) |
+| 1인분 단위 | `serving_unit=인분` only for 음식 rows | taken from the mirror README ("음식 serving_g = 1인분"), not an original column |

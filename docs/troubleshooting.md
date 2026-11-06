@@ -30,3 +30,12 @@
 | `pending_locked` 지속 | Excel에서 파일을 열어 둠, 동기화 클라이언트 잠금 | 파일 닫기 → 다음 poll에 1회 내보내기 |
 | Excel 수정이 반영 안 됨 | `INVENTORY_XLSX_AUTO_APPLY=false`(기본) | `POST /api/v1/inventory/excel-sync {"dry_run": false, "confirmed": true}` 또는 AUTO_APPLY=true |
 | 내 서식/추가 시트가 사라짐 | 내보내기가 통합문서를 새로 씀 | 서식·메모는 다른 파일에 두기(범위 제외) |
+
+### Iteration 2 (review 02 이후)
+| 증상 | 원인 | 조치 |
+|---|---|---|
+| status `needs_review`, Excel이 갱신되지 않음 | Excel에 invalid 행(음수·소수·수식·바코드 중복) 또는 conflict(음수가 되는 병합, 양쪽 메타데이터 수정)가 있음. 자동 반영은 멈추고 파일을 덮어쓰지 않음 | `/admin/inventory-sync`에서 미리보기 → 셀을 고치거나 Apply(유효한 행만 반영, 나머지 보고). DB 변경은 사라지지 않고 바로 내보내짐 |
+| status `error` | 예상하지 못한 예외(`last_error`에 기록) | 서버 로그와 `last_error` 확인. 같은 파일은 다음 poll에 재시도되며 성공 전까지 `ok`로 표시되지 않음 |
+| 음식 이름이 확인 화면에서 바뀜/잘림 | 조사는 단어 끝에서, 영양 사전에 있는 이름이 될 때만 제거 | 사전에 없는 음식은 말한 그대로 남고 kcal 미상. 후보 바꾸기 버튼 사용 |
+| "지난달", "저번 주" 등으로 말했더니 날짜를 되물음 | 이해하지 못한 날짜 표현은 오늘로 저장하지 않고 되묻도록 설계 | "10월 6일"처럼 날짜로 말하기 |
+| uvicorn을 여러 워커로 실행 | 프로세스 사이 동기화 잠금 없음 | `--workers 1`로 실행 |

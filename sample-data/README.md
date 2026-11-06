@@ -35,17 +35,18 @@ Import 모드: `seed`(신규만 생성, 기존 재고 유지 — 재수입 안�
 ```powershell
 # .env
 INVENTORY_XLSX_PATH=C:\Users\<me>\OneDrive\Rokid\inventory.xlsx
-INVENTORY_XLSX_POLL_SECONDS=5
-INVENTORY_XLSX_AUTO_APPLY=true     # Excel에서 고친 값을 자동 반영(3-way 병합, 충돌 기록)
+INVENTORY_XLSX_POLL_SECONDS=30    # 비우면 30초, 0 = 백그라운드 동기화 명시적 끔
+INVENTORY_XLSX_AUTO_APPLY=true     # 기본값. 안전한 수정만 자동 반영(알려진 기준, conflict·invalid 없음)
 ```
 - 서버가 파일을 만들고, 재고가 바뀔 때마다 다시 씁니다. `inventory` 시트만 수정하세요(`transactions`는 읽기 전용, 숨김 `_sync` 시트는 지우지 마세요).
 - 파일을 열어 둔 동안에는 내보내기가 대기(pending)했다가 닫으면 반영됩니다.
 - 오래된 사본으로 덮어써도 그 사이의 안경 사용 기록은 되돌려지지 않습니다(export_id 기준 병합).
 - 행을 지워도 제품은 삭제되지 않고 다음 내보내기에서 복원됩니다. 새 행은 새 제품으로 추가됩니다.
-- 상태: `GET /api/v1/inventory/excel-sync/status`, 수동 반영: `POST /api/v1/inventory/excel-sync {"dry_run": false, "confirmed": true}`.
+- 잘못된 셀(음수·소수·수식·다른 제품 바코드)이 있으면 자동 반영을 멈추고(`needs_review`) 파일을 덮어쓰지 않습니다. 브라우저에서 `http://<서버>/admin/inventory-sync`로 미리보기·Apply.
+- 상태: `GET /api/v1/inventory/excel-sync/status`, 수동 반영: `POST /api/v1/inventory/excel-sync {"dry_run": false, "confirmed": true}`. 서버는 `--workers 1`로 실행하세요.
 
 ## nutrition_reference_public.csv (공개 데이터)
-식약처 식품영양성분 데이터베이스(전국통합식품영양성분정보 표준데이터)를 재배포한 공개 GitHub 저장소 4곳에서 추출하고 서로 대조한 165행입니다. 각 행의 `source_detail`에 저장소@커밋, `verification`에 검증 등급이 있습니다. 재생성: `scripts/build_nutrition_reference.py`, 검증: `scripts/validate_nutrition_csv.py`. 공식 파일을 받으면 `scripts/import_nutrition_mfds.py --file …`로 1차 출처 값을 넣으세요(우선 적용). 출처표시: 식품의약품안전처 식품영양성분 데이터베이스.
+식약처 식품영양성분 데이터베이스(음식)와 농진청 국가표준식품성분 DB 10.4(원재료)를 재배포한 공개 GitHub 저장소 4곳에서 동명 행을 모두 모아 대표 행을 고른 124행입니다(규칙: 100 g 우선, 공식 식품코드 행이 있으면 그 행 기준, 모든 미러가 일치할 때만 `mirror_cross_checked`, 합의가 없으면 제외 — 50개 제외는 report.json). 각 행의 `source_detail`에 저장소@커밋, `verification`에 검증 등급이 있습니다. 100 mL 기준 행은 `serving_size_ml`만 있고 값은 비어 있습니다. 재생성: `scripts/build_nutrition_reference.py`, 검증: `scripts/validate_nutrition_csv.py`. 공식 파일을 받으면 `scripts/import_nutrition_mfds.py --file …`로 1차 출처 값을 넣으세요(우선 적용). 출처표시: 식품의약품안전처 식품영양성분 데이터베이스.
 
 ## nutrition_demo.csv
 `source = DEMO_MOCK`, `is_demo = 1`. 파이프라인 시험용 임의값입니다. 실제 사용 전 MFDS OpenAPI(data.go.kr 15127578) 또는 검증된 표로 교체하세요.

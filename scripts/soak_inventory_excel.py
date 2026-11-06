@@ -46,7 +46,7 @@ def main(argv=None) -> int:
         conn, stats = run_soak(conn, Path(tmp) / "linked" / "inventory.xlsx", a.seed, a.uses, a.edits, a.restarts, db_path=db)
         stats["seconds"] = round(time.perf_counter() - t0, 1)
         stats["excel_imports"] = conn.execute("SELECT COUNT(*) FROM excel_imports").fetchone()[0]
-        stats["exports_written"] = conn.execute("SELECT COUNT(*) FROM excel_exports WHERE status='written'").fetchone()[0]
+        stats["exports_retained"] = conn.execute("SELECT COUNT(*) FROM excel_exports WHERE status='written'").fetchone()[0]
         stats["conflicts_logged"] = conn.execute("SELECT COUNT(*) FROM excel_sync_events WHERE kind='conflict'").fetchone()[0]
         stats["db_bytes"] = db.stat().st_size
         stats["result"] = "PASS (all invariants held)"

@@ -79,7 +79,7 @@ Region: `{"type":"bbox","x":..,"y":..,"w":..,"h":..}` 또는 `{"type":"polygon",
 | GET | `/api/v1/meal-logs/{id}` | 단건 |
 | DELETE | `/api/v1/meal-logs/{id}?confirmed=true` | soft delete(`deleted_at`). 음성 삭제 없음 |
 
-g 규칙: 말한 g → `stated`; 단위를 말하지 않았거나 단위가 기준표 `serving_unit`(음식=`인분`)과 같으면 수량×1회 제공량 → `serving_size`(추정); 그 외(예: '공기', '개') → g/kcal `null` + `null_reason`. 기준량이 100 mL인 음식은 g이 있어도 kcal `null`.
+g 규칙(영양값은 항상 기준표 값이므로 kcal은 항상 `is_estimate=true`, 화면·`speech_text`에 '추정'): 말한 g → `stated`; 단위를 말하지 않았거나 단위가 기준표 `serving_unit`(음식=`인분`)과 같으면 수량×1회 제공량 → `serving_size`(추정); 그 외(예: '공기', '개') → g/kcal `null` + `null_reason`. 기준량이 100 mL인 음식은 1인분을 `volume_ml`(mL)로만 보여 주고 g·kcal은 `null`(`null_reason=volume_basis`). mL를 g로 바꾸지 않습니다.
 
 ## Inventory ↔ Excel sync (iteration 2)
 | Method | Path | 설명 |
@@ -87,8 +87,15 @@ g 규칙: 말한 g → `stated`; 단위를 말하지 않았거나 단위가 기�
 | POST | `/api/v1/inventory/excel-sync` | `{dry_run: true}`(기본) = 병합 계획 미리보기만. `{dry_run: false, confirmed: true}` = 외부 수정 3-way 병합 + 현재 재고 내보내기. `confirmed` 없으면 400. 미설정이면 409 `EXCEL_SYNC_DISABLED` |
 | GET | `/api/v1/inventory/excel-sync/status` | 경로, `pending_export`, `change_seq/exported_seq`, 마지막 export/결과, 잠금 파일·충돌 사본, 최근 이벤트(충돌/경고/무효 행) |
 
-`status` 값: `exported`, `merged_and_exported`, `up_to_date`, `pending_locked`, `blocked`(export_id 미상 — 파일 덮어쓰지 않음), `deferred_locked_by_excel`, `deferred_unstable`, `deferred_unreadable`, `external_changes_pending_confirmation`, `preview`.
+`status` 응답(GET)에는 `state`(`ok` | `ok_with_rejected_rows` | `needs_review` | `blocked` | `error` | `pending_locked` | `waiting` | `disabled`), `last_error`, `stored`(동기화 테이블 행 수)가 있습니다. 실패한 상태에서 `ok`/`up_to_date`를 표시하지 않습니다.
+
+자동 반영(`INVENTORY_XLSX_AUTO_APPLY=true`, 기본값)은 **안전한 변경만** 적용합니다: 알려진 export_id 기준(baseline)이 있고 conflict·invalid 행이 없을 때. 하나라도 있으면 `needs_review` — 아무것도 반영하지 않고, 파일을 덮어쓰지 않으며(사람의 수정이 보존됨), DB 변경은 pending export로 쌓였다가 파일이 고쳐지거나 `/admin/inventory-sync`에서 Apply하면 즉시 내보냅니다. 수동 Apply(`dry_run=false, confirmed=true`)는 유효한 행만 반영하고 거부된 행(바코드/QR 중복, DB 제약 위반 등)은 `plan.invalid`로 보고한 뒤 내보내기를 계속합니다. 서로 독립인 두 재고 차분을 더하는 `merge_delta`는 `plan.merges`(양쪽 보존)로 분류되며 conflict가 아닙니다.
+
+관리 화면: `GET /admin/inventory-sync` (토큰 입력 방식은 `/admin/meals`와 같음; 미리보기, invalid/conflict 목록, Apply 버튼, 최근 이벤트).
+
+`status` 값: `exported`, `merged_and_exported`, `up_to_date`, `pending_locked`, `needs_review`, `error`, `blocked`(export_id 미상 — 파일 덮어쓰지 않음), `deferred_locked_by_excel`, `deferred_unstable`, `deferred_unreadable`, `external_changes_pending_confirmation`, `preview`.
 
 ## Nutrition (iteration 2 changes)
 - 응답 행에 `verification`(`official_file_import` > `mirror_cross_checked` > `single_mirror` > `web_transcribed` > `demo_mock`), `serving_size_g`, `serving_unit`, `basis`, `source_url`, `retrieved_at`.
-- 자동 매칭은 이름/별칭 **정확 일치**만. 부분 일치는 `candidates`로만 제공.
+- 자동 매칭은 이름/별칭 **정확 일치**만. 부분 일치와 일반어 별칭(`suggest_aliases`, 예: 된장국→호박된장국, 계란→달걀(생것))은 `candidates`로만 제공.
+- 행 필드 추가: `serving_size_ml`(100 mL 기준 음식), `micro_verification`(당류·나트륨 검증 등급), `verification=legacy_api`(iteration 1 DB의 비DEMO 행).
