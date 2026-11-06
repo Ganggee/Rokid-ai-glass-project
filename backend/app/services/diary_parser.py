@@ -83,6 +83,7 @@ def _safe_date(y, m, d) -> date | None:
 UNRESOLVED_TEMPORAL = re.compile(
     r"(지난|저번|이번|다음)\s*(주|달|해)?|재작년|작년|올해|금년|내년|며칠\s*(전|후)?|주말|[월화수목금토일]?요일|"
     r"\d+\s*(주|달|개월|년)\s*(전|후|뒤)|last|next|week|month|ago")
+TEMPORAL_FRAGMENT = re.compile(r"^(엊|그끄|그저께|그제|어제|오늘|내일|모레)|\d+\s*(일|월|년)$")
 MONTH_REL = {"지난": -1, "저번": -1, "이번": 0, "다음": 1}
 YEAR_REL = {"재작년": -2, "작년": -1, "지난해": -1, "올해": 0, "금년": 0, "내년": 1}
 
@@ -136,11 +137,13 @@ def parse_date(text: str, today: date) -> dict[str, Any]:
     m = re.search(r"(\d{1,2})\s*일\s*(전|前)", t)
     if m:
         return done(today - timedelta(days=int(m.group(1))), m.group(0), True)
-    if re.search(r"엊그제", t):
-        return done(None, "엊그제", question="엊그제가 며칠인지 날짜로 말씀해 주세요")
+    m = re.search(r"엊그저께|엊그제|그끄저께|그끄제", t)
+    if m:
+        return done(None, m.group(0), question=f"'{m.group(0)}'가 며칠인지 날짜로 말씀해 주세요")
     if WEEKDAY.search(t):
         return done(None, WEEKDAY.search(t).group(0), question="요일 대신 날짜로 말씀해 주세요 (예: 11월 6일)")
-    rel = [("그저께", -2), ("그제", -2), ("어젯밤", -1), ("어젯저녁", -1), ("어제", -1), ("오늘", 0), ("모레", 2),
+    rel = [("그저께", -2), ("그제", -2), ("어젯밤", -1), ("어젯저녁", -1), ("엊저녁", -1), ("엊밤", -1), ("어제", -1),
+           ("오늘", 0), ("모레", 2),
            ("내일", 1), ("yesterday", -1), ("today", 0), ("tomorrow", 1),
            # "just now" words mean today (review R-3); the confirmation screen still shows the full date
            (r"조금\s*전에?", 0), (r"좀\s*전에?", 0), ("아까", 0), ("방금", 0)]
@@ -278,7 +281,7 @@ def parse_foods(text: str, date_matched: str, meal_matched: str, known=None) -> 
         low = tok.lower().strip(".!?~")
         if not low:
             continue
-        if low in (",", "그리고", "및", "또"):
+        if low in (",", "그리고", "및", "또", "하고", "랑", "이랑"):  # spaced "A 하고 B" (advisor M-3)
             chunks.append(cur)
             cur = []
             continue
@@ -345,6 +348,9 @@ def parse(text: str, now: datetime, known=None) -> dict[str, Any]:
             if CORRECTION.search(norm):
                 questions.append("정정하신 내용이 있습니다. 드신 음식을 처음부터 다시 말씀해 주세요")
     foods = parse_foods(norm, d["matched"], meal_matched, known) if intent == "record" else []
+    frag = [f["name"] for f in foods if TEMPORAL_FRAGMENT.search(f["name"])]
+    if frag and not any("날짜" in q for q in questions):  # a date word left inside a food name: never guess
+        questions.append(f"'{frag[0]}'에 날짜 표현이 섞여 있습니다. 날짜와 음식을 다시 말씀해 주세요")
     if intent == "record" and not foods and not questions:
         questions.append("무엇을 드셨는지 말씀해 주세요 (예: 밥 한 공기, 김치찌개)")
     return {

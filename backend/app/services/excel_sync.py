@@ -44,7 +44,8 @@ META_FIELDS = tuple(f for f in FIELDS if f not in ("product_id", "stock_qty"))
 TEXT_FIELDS = ("product_id", "barcode", "qr_value")
 _LOCKS: dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()
-_replace = os.replace  # indirection so tests can simulate a locked file
+_replace = os.replace  # indirection so tests can simulate a locked file / a racing save
+_link = os.link        # atomic "create only if absent" (compare-and-swap placement, advisor M-1)
 KEEP_EXPORTS = 50       # newest successful exports whose snapshots stay usable as merge baselines ...
 KEEP_DAYS = 90          # ... OR every successful export younger than this (whichever keeps more; review R-1)
 KEEP_MAX_EXPORTS = 5000  # hard cap inside the 90-day window: beyond it keep the newest N + one per day
@@ -194,7 +195,74 @@ def _retain(conn) -> None:
     conn.execute("DELETE FROM excel_sync_events WHERE id <= (SELECT MAX(id) FROM excel_sync_events) - ?", (KEEP_EVENTS,))
 
 
-def export(conn, path: Path, reason: str = "change", observed: dict | None = None) -> dict[str, Any]:
+def _acceptable_to_overwrite(conn, sha: str) -> bool:
+    """The file may be replaced only if it is our last export or content we have already merged."""
+    if sha == _get(conn, "last_export_sha"):
+        return True
+    return conn.execute("SELECT 1 FROM excel_imports WHERE file_sha256 = ?", (sha,)).fetchone() is not None
+
+
+def _place(conn, tmp: Path, path: Path, force: bool = False) -> str:
+    """Compare-and-swap placement of a freshly written export (advisor M-1 / F-1).
+
+    1. move the current file aside (atomic rename; a locked file raises -> pending_locked)
+    2. verify the moved file is our last export or already-merged content; otherwise put it back
+       and defer (the person's save wins, it is merged on the next poll)
+    3. place the new file with os.link = create-only-if-absent, so a save that lands between
+       steps 1 and 3 is never overwritten. Filesystems without hard links fall back to os.replace
+       (tiny residual window; status reports cas_mode=replace).
+    Returns "placed" or a short reason string."""
+    aside = None
+    if path.exists():
+        aside = path.with_name(f".~sync-aside-{uuid.uuid4().hex}{path.suffix}")
+        _replace(path, aside)
+        if not force and not _acceptable_to_overwrite(conn, _sha(aside)):
+            try:
+                _link(aside, path)
+                aside.unlink()
+            except FileExistsError:  # yet another save arrived: keep the newest at the path
+                _keep_aside(conn, aside, path)
+            except OSError:
+                if not path.exists():
+                    _replace(aside, path)
+                else:
+                    _keep_aside(conn, aside, path)
+            return "external_change_before_write"
+    try:
+        _link(tmp, path)
+        tmp.unlink()
+        mode = "link"
+    except FileExistsError:
+        if aside is not None:
+            aside.unlink()  # our own previous export (verified above); the new file at the path is the person's
+        return "external_change_during_write"
+    except (OSError, AttributeError, NotImplementedError):
+        if path.exists():  # appeared meanwhile and we cannot do an exclusive create: never overwrite it
+            if aside is not None:
+                aside.unlink()
+            return "external_change_during_write"
+        _replace(tmp, path)
+        mode = "replace"
+    if aside is not None:
+        try:
+            aside.unlink()
+        except OSError:
+            pass
+    with write_transaction(conn):
+        _set(conn, "cas_mode", mode)
+    return "placed"
+
+
+def _keep_aside(conn, aside: Path, path: Path) -> None:
+    """Two saves raced with an export: keep the older one as a visible conflict copy (never merged)."""
+    keep = path.with_name(f"{path.stem} (sync-conflict {uuid.uuid4().hex[:6]}){path.suffix}")
+    _replace(aside, keep)
+    with write_transaction(conn):
+        _event(conn, "conflict_copy_created", None, file=keep.name)
+
+
+def export(conn, path: Path, reason: str = "change", observed: dict | None = None, force: bool = False) -> dict[str, Any]:
+    """force=True only for the explicit operator action 'discard_file' (the file was backed up first)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     seq, snap, tx = _snapshot(conn)
@@ -212,7 +280,7 @@ def export(conn, path: Path, reason: str = "change", observed: dict | None = Non
         conn.execute("INSERT INTO excel_exports(export_id, path, change_seq, snapshot_sha, sha256, status, created_at) "
                      "VALUES (?,?,?,?,?, 'writing', ?)", (export_id, str(path), seq, snap_sha, sha, now))
     try:
-        _replace(tmp, path)
+        placed = _place(conn, tmp, path, force=force)
     except OSError as exc:  # PermissionError on Windows while Excel has the file open
         try:
             tmp.unlink()
@@ -227,6 +295,18 @@ def export(conn, path: Path, reason: str = "change", observed: dict | None = Non
                 _event(conn, "export_failed", error=type(exc).__name__, reason=reason)
             _set(conn, "pending_reason", reason_txt)
         return {"status": "pending_locked", "export_id": None, "error": type(exc).__name__}
+    if placed != "placed":  # the file changed under us: keep the person's version, merge it next poll
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        with write_transaction(conn):
+            conn.execute("DELETE FROM excel_exports WHERE export_id = ?", (export_id,))
+            conn.execute("DELETE FROM excel_snapshots WHERE sha = ? AND sha NOT IN (SELECT snapshot_sha FROM excel_exports)",
+                         (snap_sha,))
+            _event(conn, "export_deferred_external_change", None, why=placed, reason=reason)
+            _set(conn, "pending_reason", "file changed while exporting; merging it first")
+        return {"status": "deferred_changed", "export_id": None, "detail": placed}
     with write_transaction(conn):
         conn.execute("UPDATE excel_exports SET status = 'written' WHERE export_id = ?", (export_id,))
         if seq > int(_get(conn, "exported_seq", "0")):
@@ -520,7 +600,7 @@ def _apply(conn, plan: dict, file_sha: str, excel: dict) -> dict[str, Any]:
 # ------------------------------------------------------------------ orchestration
 # Sync-client conflict copies only: " (1)" (Windows / Google Drive), "-PCNAME" (OneDrive, upper-case host name),
 # "(... conflicted copy ...)" (Dropbox), "(충돌 ...)".
-CONFLICT_COPY = re.compile(r"^(\s\(\d+\)|\s?\([^)]*conflicted copy[^)]*\)|-[A-Z0-9][A-Z0-9-]{2,30}|\s?\(충돌[^)]*\))$")
+CONFLICT_COPY = re.compile(r"^(\s\(\d+\)|\s?\([^)]*conflicted copy[^)]*\)|\s\(sync-conflict [0-9a-f]+\)|-[A-Z0-9][A-Z0-9-]{2,30}|\s?\(충돌[^)]*\))$")
 
 
 def conflict_copies(path: Path) -> list[str]:
@@ -528,7 +608,7 @@ def conflict_copies(path: Path) -> list[str]:
     if not path.parent.is_dir():
         return out
     for p in path.parent.iterdir():
-        if p == path or not p.is_file() or p.name.startswith((".~sync-", "~$")):
+        if p == path or not p.is_file() or p.name.startswith((".~sync-", "~$", ".~lock.")):
             continue
         if p.suffix.lower() in (".xlsx", ".xlsm") and p.stem.startswith(stem) and CONFLICT_COPY.match(p.stem[len(stem):]):
             out.append(p.name)
@@ -640,7 +720,9 @@ def sync_once(conn, path: Path, *, apply: bool, policy: str = "merge_delta", req
         try:
             if is_pending(conn) or not path.exists() or _sha(path) != _get(conn, "last_export_sha"):
                 res["export"] = export(conn, path, observed=observed)
-                res["status"] = "exported" if res["export"]["status"] == "exported" else "pending_locked"
+                es = res["export"]["status"]
+                res["status"] = "exported" if es == "exported" else ("deferred_changed" if es == "deferred_changed"
+                                                                      else "pending_locked")
             else:
                 res.setdefault("status", "up_to_date")
         except Exception as exc:  # noqa: BLE001
@@ -678,6 +760,7 @@ def _finish(conn, res: dict, dry_run: bool) -> dict:
 
 STATE = {"exported": "ok", "merged_and_exported": "ok", "up_to_date": "ok", "pending_locked": "pending_locked",
          "deferred_locked_by_excel": "pending_locked", "deferred_unstable": "waiting", "deferred_unreadable": "waiting",
+         "deferred_changed": "waiting",
          "needs_review": "needs_review", "external_changes_pending_confirmation": "needs_review", "blocked": "blocked",
          "error": "error"}
 
@@ -705,6 +788,7 @@ def status(conn, path: Path | None, settings) -> dict[str, Any]:
         "lock_file_present": lock_file_present(Path(path)), "conflict_copies": conflict_copies(Path(path)),
         "merge_policy": settings.inventory_xlsx_merge_policy, "auto_apply": settings.inventory_xlsx_auto_apply,
         "poll_seconds": settings.inventory_xlsx_poll_seconds, "recent_events": events,
+        "cas_mode": _get(conn, "cas_mode") or None,
         "stored": {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
                    for t in ("excel_exports", "excel_snapshots", "excel_imports", "excel_sync_events")},
     }
@@ -768,7 +852,7 @@ def resolve(conn, path: Path, action: str, *, confirmed: bool, backup_dir: Path,
                 backup = backup_dir / f"{path.stem}-discarded-{stamp}-{uuid.uuid4().hex[:6]}{path.suffix}"
                 shutil.copy2(path, backup)
             res["backup"] = str(backup) if backup else None
-            res["export"] = export(conn, path, reason="discard_file")
+            res["export"] = export(conn, path, reason="discard_file", force=True)
             res["status"] = "exported" if res["export"]["status"] == "exported" else "pending_locked"
             with write_transaction(conn):
                 _event(conn, "file_edits_discarded", None, backup=res["backup"])

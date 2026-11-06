@@ -332,3 +332,36 @@ def test_r6_night_asks_dinner_or_snack_and_is_not_a_food():
     r = parse("어제 밤에 라면 먹었어", NOV6, known=known)
     assert [f["name"] for f in r["foods"]] == ["라면"]
     assert any("저녁" in q and "간식" in q for q in r["questions"])
+
+
+# ---------------------------------------------------------------- advisor 05 M-3
+def test_m3_every_bundled_name_with_spaced_hago_and_comma(conn):
+    kn = _known_from_db(conn)
+    bad = []
+    for r in nutrition_lookup.list_references(conn):
+        if r["is_demo"] or " " in r["food_name"] or "(" in r["food_name"]:
+            continue
+        for tmpl in ("오늘 점심 {} 하고 김밥 먹었어", "오늘 점심 {}, 김밥 먹었어", "오늘 점심 김밥이랑 {} 먹었어"):
+            got = [f["name"] for f in parse(tmpl.format(r["food_name"]), NOV6, known=kn)["foods"]]
+            if sorted(got) != sorted([r["food_name"], "김밥"]):
+                bad.append((r["food_name"], tmpl, got))
+    assert not bad, bad[:10]
+
+
+def test_m3_eotjeonyeok_is_yesterday_dinner_and_eotgeujeokke_asks():
+    r = parse("엊저녁 김밥 먹었어", NOV6, known=known)
+    assert r["date"] == "2026-11-05" and r["meal_type"] == "dinner" and [f["name"] for f in r["foods"]] == ["김밥"]
+    assert not r["questions"]
+    r2 = parse("엊그저께 저녁 김밥 먹었어", NOV6, known=known)
+    assert r2["date_status"] == "ask" and r2["questions"]
+
+
+def test_m3_leftover_date_fragment_in_food_name_asks():
+    r = parse("점심 그끄저께 김밥 먹었어", NOV6, known=known)
+    assert r["questions"], r
+    assert not r["requires_confirmation"]
+
+
+def test_m3_fragment_check_itself():
+    r = parse("점심 엊 김밥 먹었어", NOV6, known=known)
+    assert any("날짜 표현이 섞여" in q for q in r["questions"]), r["questions"]

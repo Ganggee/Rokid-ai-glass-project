@@ -315,6 +315,28 @@ def run_soak(conn, path, seed_value: int, uses: int, edits: int, restarts: int, 
     stats = {"uses": 0, "rejected": 0, "edits": 0, "restarts": 0, "locked": 0, "needs_review": 0, "manual_applies": 0,
              "edit_kinds": {}}
     sync(conn, path)
+    # advisor M-1: track every human stock change; at the end Σ(excel_sync adjust) must equal
+    # Σ(human deltas) − Σ(deltas reported as negative-merge conflicts). Values are tracked per file version.
+    human = {"total": 0, "lost": 0}
+    cell: dict = {}
+    seen_eid = {"v": None}
+
+    def refresh():
+        eid = load_workbook(path)["_sync"]["B1"].value
+        if eid != seen_eid["v"]:
+            seen_eid["v"] = eid
+            ws_ = load_workbook(path, data_only=True)["inventory"]
+            hd = [c.value for c in ws_[1]]
+            cell.clear()
+            cell.update({r[hd.index("product_id")]: int(r[hd.index("stock_qty")]) for r in ws_.iter_rows(min_row=2, values_only=True)})
+
+    def account(r):
+        if r.get("merge") and r.get("plan"):
+            for cf in r["plan"]["conflicts"]:
+                if cf.get("kind") == "merge_would_be_negative":
+                    human["lost"] += cf["excel"] - cf["base"]
+
+    refresh()
     edit_points = set(rng.sample(range(uses), edits))
     restart_points = set(rng.sample(range(uses), restarts))
     new_seq = 0
@@ -334,9 +356,13 @@ def run_soak(conn, path, seed_value: int, uses: int, edits: int, restarts: int, 
             target = rng.choice(pids)
             kind = rng.choices(["stock", "new_row", "pid_typo", "delete_row", "invalid_value"], [6, 1, 1, 1, 1])[0]
             stats["edit_kinds"][kind] = stats["edit_kinds"].get(kind, 0) + 1
-            q = int(rows[target][header.index("stock_qty")]) if target in rows else 0
+            q = cell.get(target, 0)  # last valid value of this file version (an invalid cell is not a base)
             if kind == "stock":
-                edit(path, {(target, "stock_qty"): max(0, q + rng.choice([5, 10, 20, -1]))})
+                if target in rows:
+                    new_q = max(0, q + rng.choice([5, 10, 20, -1]))
+                    edit(path, {(target, "stock_qty"): new_q})
+                    human["total"] += new_q - q
+                    cell[target] = new_q
             elif kind == "new_row":
                 new_seq += 1
                 edit(path, {}, add_rows=({"product_id": f"SOAK-NEW-{seed_value}-{new_seq}", "product_name": "soak", "stock_qty": 5},))
@@ -359,23 +385,33 @@ def run_soak(conn, path, seed_value: int, uses: int, edits: int, restarts: int, 
             stats["locked"] += 1
             orig = xs._replace
             xs._replace = lambda a, b: (_ for _ in ()).throw(PermissionError("locked"))
-            xs.sync_once(conn, path, apply=True, auto=True)
+            account(xs.sync_once(conn, path, apply=True, auto=True))
             xs._replace = orig
+            refresh()
         if rng.random() < 0.3:
             r = xs.sync_once(conn, path, apply=True, auto=True)
+            account(r)
             if r["status"] == "needs_review":
                 stats["needs_review"] += 1
                 if rng.random() < 0.5:  # the person opens /admin/inventory-sync and applies
-                    assert sync(conn, path)["status"] in ("merged_and_exported", "exported"), "manual apply must not get stuck"
+                    m = sync(conn, path)
+                    account(m)
+                    assert m["status"] in ("merged_and_exported", "exported"), "manual apply must not get stuck"
                     stats["manual_applies"] += 1
             assert r["status"] != "error", r
+            refresh()
         for t in ("excel_exports", "excel_snapshots", "excel_imports", "excel_sync_events"):
             max_rows[t] = max(max_rows.get(t, 0), conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0])
         if i % 250 == 0:
             check_invariants(conn)
     final = sync(conn, path)  # manual apply resolves whatever is left
+    account(final)
     if final["status"] not in ("up_to_date", "exported", "merged_and_exported"):
         raise AssertionError(final)
+    applied = conn.execute("SELECT COALESCE(SUM(quantity_delta),0) FROM inventory_transactions "
+                           "WHERE source='excel_sync' AND tx_type='adjust'").fetchone()[0]
+    assert applied == human["total"] - human["lost"], (applied, human)  # no human stock edit silently lost
+    stats["human_delta_total"], stats["human_delta_reported_conflict"] = human["total"], human["lost"]
     assert sync(conn, path)["status"] == "up_to_date"
     check_invariants(conn)
     for p in inv.search_products(conn, limit=500):
@@ -814,3 +850,163 @@ def test_r1_resolve_api_and_admin_buttons(tmp_path):
         assert c.post("/api/v1/inventory/excel-sync/resolve", json={"action": "nope", "confirmed": True}).status_code == 422
         page = c.get("/admin/inventory-sync").text
         assert "discard_file" in page and "apply_file_values" in page
+
+
+# ------------------------------------------------------------------ advisor 05 M-1 (F-1): export race
+def _human_save(path, changes):
+    """Excel/OneDrive style save: write a new file, then atomically rename it over the target."""
+    tmp = path.with_name("human-save.tmp.xlsx")
+    shutil.copy(path, tmp)
+    edit(tmp, changes)
+    import os
+    os.replace(tmp, path)
+
+
+def test_f1_human_save_during_export_is_not_overwritten(env, monkeypatch):
+    conn, path = env
+    sync(conn, path)                                     # E1, H=15
+    use(conn)                                            # pending export
+    orig = xs._replace
+    fired = {"n": 0}
+
+    def racing_replace(src, dst):
+        if fired["n"] == 0:                              # the person saves right before the server writes
+            fired["n"] += 1
+            _human_save(path, {(H, "stock_qty"): 25})
+        return orig(src, dst)
+
+    monkeypatch.setattr(xs, "_replace", racing_replace)
+    r = sync(conn, path, auto=True)
+    monkeypatch.setattr(xs, "_replace", orig)
+    assert r["status"] == "deferred_changed", r
+    assert excel_stock(path, H) == 25                   # the person's save is still in the file
+    st = xs.status(conn, path, __import__("backend.app.config", fromlist=["x"]).load_settings(api_token="t"))
+    assert st["state"] == "waiting" and st["pending_export"] is True
+    assert any(e["kind"] == "export_deferred_external_change" for e in st["recent_events"])
+    r2 = sync(conn, path, auto=True)                     # next poll merges the person's +10
+    assert r2["status"] == "merged_and_exported", r2
+    assert stock(conn, H) == 25 and excel_stock(path, H) == 25 and excel_stock(path) == 19
+    check_invariants(conn)
+
+
+def test_f1_file_created_while_exporting_to_missing_path_is_kept(env, monkeypatch):
+    conn, path = env
+    sync(conn, path)
+    keep = path.with_name("copy.xlsx")
+    shutil.copy(path, keep)
+    path.unlink()                                        # file temporarily gone (sync client)
+    use(conn)
+    orig_link = xs._link
+
+    def racing_link(src, dst):
+        shutil.copy(keep, dst)                           # someone restores/creates the file meanwhile
+        return orig_link(src, dst)
+
+    monkeypatch.setattr(xs, "_link", racing_link)
+    r = sync(conn, path, auto=True)
+    monkeypatch.setattr(xs, "_link", orig_link)
+    assert r["status"] == "deferred_changed"
+    assert _export_id(path) == _export_id(keep)          # their file, not ours
+
+
+def test_f1_fallback_without_hard_links_still_exports(env, monkeypatch):
+    conn, path = env
+    sync(conn, path)
+    use(conn)
+
+    def no_links(src, dst):
+        raise OSError(95, "Operation not supported")
+
+    monkeypatch.setattr(xs, "_link", no_links)
+    r = sync(conn, path, auto=True)
+    assert r["status"] == "exported" and excel_stock(path) == 19
+    assert xs.status(conn, path, __import__("backend.app.config", fromlist=["x"]).load_settings(api_token="t"))["cas_mode"] == "replace"
+
+
+def test_f1_high_frequency_uses_with_concurrent_human_saves_preserve_every_edit(tmp_path):
+    """~20 uses/s on a real poller thread + human saves (stale copies included): every human +k survives."""
+    import threading
+    import time
+
+    from backend.app.config import load_settings
+
+    db = tmp_path / "hf.sqlite3"
+    seed(db)
+    c0 = connect(db)
+    for pid in (S, A, H):
+        c0.execute("UPDATE products SET stock_qty = stock_qty + 2000 WHERE product_id = ?", (pid,))
+        c0.execute("INSERT INTO inventory_transactions(product_id, tx_type, quantity_delta, stock_before, stock_after, source, "
+                   "created_at) SELECT product_id, 'adjust', 2000, stock_qty - 2000, stock_qty, 'test', 'now' FROM products "
+                   "WHERE product_id = ?", (pid,))
+    c0.close()
+    path = tmp_path / "linked" / "inventory.xlsx"
+    s = load_settings(env_file=tmp_path / "none.env", api_token="t" * 20, database_path=db, upload_dir=tmp_path / "u",
+                      inventory_xlsx_path=path, inventory_xlsx_poll_seconds=0.02)
+    cs = connect(db)
+    xs.sync_once(cs, path, apply=True, auto=True)
+    poller = xs.Poller(s, connect)
+    poller.start()
+    stop = threading.Event()
+    used = {S: 0, A: 0, H: 0}
+
+    def user():
+        cu = connect(db)
+        rng = random.Random(1)
+        while not stop.is_set():
+            pid = rng.choice([S, A, H])
+            use(cu, pid)
+            used[pid] += 1
+            poller.notify()
+            time.sleep(0.05)                             # ~20 uses per second
+        cu.close()
+
+    t = threading.Thread(target=user)
+    t.start()
+    rng = random.Random(7)
+    human = {S: 0, A: 0, H: 0}
+    try:
+        for i in range(25):
+            time.sleep(rng.uniform(0.02, 0.15))
+            for _ in range(20):                          # read a stable copy (skip mid-write moments)
+                try:
+                    wb = load_workbook(path, data_only=True)
+                    break
+                except Exception:
+                    time.sleep(0.01)
+            ws = wb["inventory"]
+            header = [cell.value for cell in ws[1]]
+            rows = {r[header.index("product_id")]: r for r in ws.iter_rows(min_row=2, values_only=True)}
+            pid = rng.choice([S, A, H])
+            k = rng.choice([1, 3, 5, 10])
+            tmp = path.with_name(f"h{i}.tmp.xlsx")
+            wb[ "inventory"]  # noqa: B018
+            for row in range(2, ws.max_row + 1):
+                if ws.cell(row, header.index("product_id") + 1).value == pid:
+                    ws.cell(row, header.index("stock_qty") + 1).value = int(rows[pid][header.index("stock_qty")]) + k
+            wb.save(tmp)
+            time.sleep(rng.uniform(0, 0.05))             # the person is slow: the server may export meanwhile
+            import os
+            os.replace(tmp, path)
+            human[pid] += k
+    finally:
+        stop.set()
+        t.join()
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        poller.notify()
+        time.sleep(0.2)
+        st = xs.status(cs, path, s)
+        if st["state"] == "ok" and not st["pending_export"]:
+            break
+    poller.stop()
+    r = xs.sync_once(cs, path, apply=True, auto=True)
+    assert r["status"] in ("up_to_date", "exported"), r
+    adj = {pid: cs.execute("SELECT COALESCE(SUM(quantity_delta),0) FROM inventory_transactions WHERE source='excel_sync' "
+                           "AND tx_type='adjust' AND product_id=?", (pid,)).fetchone()[0] for pid in (S, A, H)}
+    assert adj == human, (adj, human)                    # every human edit applied exactly once
+    for pid in (S, A, H):
+        start = 2000 + {S: 20, A: 10, H: 15}[pid]
+        assert inv.get_product(cs, pid)["stock_qty"] == start + human[pid] - used[pid]
+        assert excel_stock(path, pid) == inv.get_product(cs, pid)["stock_qty"]
+    check_invariants(cs)
+    cs.close()
