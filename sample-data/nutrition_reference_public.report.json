@@ -1,0 +1,2482 @@
+{
+  "curated": 175,
+  "missing": [
+    "볶음밥_새우볶음밥"
+  ],
+  "excluded_disagreement": [
+    {
+      "name": "보리밥",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 117.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 117.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 161.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 118.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 161.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 120.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 118.0
+        }
+      ]
+    },
+    {
+      "name": "볶음밥",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 2,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 183.0
+        }
+      ]
+    },
+    {
+      "name": "전복죽",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 74.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 74.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 79.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 120.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 139.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 79.0
+        }
+      ]
+    },
+    {
+      "name": "호박죽",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 58.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 58.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 49.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 43.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 71.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 49.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 38.0
+        }
+      ]
+    },
+    {
+      "name": "팥죽",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 69.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 69.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 81.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 121.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 83.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 81.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 121.0
+        }
+      ]
+    },
+    {
+      "name": "떡만두국",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 89.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 89.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 111.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 76.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 49.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 86.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 111.0
+        }
+      ]
+    },
+    {
+      "name": "두부국",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 19.0
+        },
+        {
+          "anchor": "carb",
+          "basis": "100ml",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 19.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 31.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 19.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 19.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 31.0
+        }
+      ]
+    },
+    {
+      "name": "추어탕",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 6,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 32.0
+        }
+      ]
+    },
+    {
+      "name": "순대국",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 6
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 51.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 51.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 85.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 68.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 85.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 55.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 25.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 25.0
+        }
+      ]
+    },
+    {
+      "name": "순두부찌개_해물",
+      "candidates": {
+        "toadsam": 1,
+        "kangsogo7": 1
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 29.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 29.0
+        }
+      ]
+    },
+    {
+      "name": "부대찌개",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 6,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 67.0
+        }
+      ]
+    },
+    {
+      "name": "동태찌개",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 25.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 44.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 44.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 25.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 44.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 24.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 24.0
+        }
+      ]
+    },
+    {
+      "name": "잔치국수",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 44.0
+        }
+      ]
+    },
+    {
+      "name": "비빔국수",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 83.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 83.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 113.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 113.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 113.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 188.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 188.0
+        }
+      ]
+    },
+    {
+      "name": "물냉면",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 55.0
+        }
+      ]
+    },
+    {
+      "name": "비빔냉면",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 2,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 100.0
+        }
+      ]
+    },
+    {
+      "name": "순대",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 6,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 181.0
+        }
+      ]
+    },
+    {
+      "name": "군만두",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 234.0
+        }
+      ]
+    },
+    {
+      "name": "김말이튀김",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 6
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "carb",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 195.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 245.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 132.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 132.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 132.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 132.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 245.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 195.0
+        }
+      ]
+    },
+    {
+      "name": "핫도그",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 299.0
+        }
+      ]
+    },
+    {
+      "name": "햄버거",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 284.0
+        }
+      ]
+    },
+    {
+      "name": "피자",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 9,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 258.0
+        }
+      ]
+    },
+    {
+      "name": "소불고기",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 170.0
+        }
+      ]
+    },
+    {
+      "name": "제육볶음",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 195.0
+        }
+      ]
+    },
+    {
+      "name": "닭볶음(닭갈비)",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 6,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 149.0
+        }
+      ]
+    },
+    {
+      "name": "제육(돼지고기 수육)",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 3
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 150.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 150.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 158.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 158.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 139.0
+        }
+      ]
+    },
+    {
+      "name": "돈가스",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 280.0
+        },
+        {
+          "anchor": "carb",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 280.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 280.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 148.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 148.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 149.0
+        }
+      ]
+    },
+    {
+      "name": "고등어구이",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 340.0
+        }
+      ]
+    },
+    {
+      "name": "삼치구이",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 64.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 64.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 178.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 81.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 77.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 178.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 132.0
+        }
+      ]
+    },
+    {
+      "name": "낙지볶음",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 74.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 74.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 91.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 91.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 136.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 73.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 136.0
+        }
+      ]
+    },
+    {
+      "name": "달걀말이",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 193.0
+        },
+        {
+          "anchor": "carb",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 193.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 169.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 193.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 169.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 176.0
+        }
+      ]
+    },
+    {
+      "name": "달걀후라이",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 2
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 178.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 184.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 184.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 178.0
+        }
+      ]
+    },
+    {
+      "name": "깍두기",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 3,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 33.0
+        }
+      ]
+    },
+    {
+      "name": "나박김치",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 1
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 10.0
+        },
+        {
+          "anchor": "carb",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 10.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 10.0
+        }
+      ]
+    },
+    {
+      "name": "동치미",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 2
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 11.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 11.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 14.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 14.0
+        }
+      ]
+    },
+    {
+      "name": "백김치",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 1
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 16.0
+        },
+        {
+          "anchor": "carb",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 16.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 16.0
+        }
+      ]
+    },
+    {
+      "name": "고사리나물",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 34.0
+        },
+        {
+          "anchor": "carb",
+          "basis": "100ml",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 34.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 43.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 43.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 34.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 56.0
+        }
+      ]
+    },
+    {
+      "name": "도라지나물",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 36.0
+        },
+        {
+          "anchor": "carb",
+          "basis": "100ml",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 36.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 117.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 39.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 39.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 36.0
+        }
+      ]
+    },
+    {
+      "name": "숙주나물",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 10.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 10.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 10.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 35.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 23.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 35.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 26.0
+        }
+      ]
+    },
+    {
+      "name": "어묵볶음",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 125.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 125.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 197.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 350.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 110.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 110.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 197.0
+        }
+      ]
+    },
+    {
+      "name": "감자조림",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 66.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 114.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 132.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 114.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 66.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 92.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 75.0
+        }
+      ]
+    },
+    {
+      "name": "연근조림",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 6
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 71.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 71.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 174.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 174.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 76.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 76.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 185.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 261.0
+        }
+      ]
+    },
+    {
+      "name": "두부부침",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 6
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 144.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 144.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 140.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 147.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 180.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 152.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 187.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 140.0
+        }
+      ]
+    },
+    {
+      "name": "감자전",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 93.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 93.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 133.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 41.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 41.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 135.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 133.0
+        }
+      ]
+    },
+    {
+      "name": "김치전",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 4
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 122.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 122.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "kangsogo7"
+          ],
+          "anchor_kcal": 134.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 164.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 126.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 134.0
+        }
+      ]
+    },
+    {
+      "name": "파전",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 3
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 195.0
+        },
+        {
+          "anchor": "carb",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 195.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 101.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 195.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 216.0
+        }
+      ]
+    },
+    {
+      "name": "동태전",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 5
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 109.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100ml",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 109.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 195.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 115.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 236.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam",
+            "carb"
+          ],
+          "anchor_kcal": 239.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 195.0
+        }
+      ]
+    },
+    {
+      "name": "완자전_소고기(동그랑땡/육원전)",
+      "candidates": {
+        "toadsam": 1,
+        "kangsogo7": 1
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 206.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 206.0
+        }
+      ]
+    },
+    {
+      "name": "가래떡",
+      "candidates": {
+        "toadsam": 1,
+        "carb": 1,
+        "kangsogo7": 2
+      },
+      "rejected": [
+        {
+          "anchor": "toadsam",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 210.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": "100g",
+          "disagree": [
+            "carb"
+          ],
+          "anchor_kcal": 210.0
+        },
+        {
+          "anchor": "carb",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 195.0
+        },
+        {
+          "anchor": "kangsogo7",
+          "basis": null,
+          "disagree": [
+            "toadsam"
+          ],
+          "anchor_kcal": 195.0
+        }
+      ]
+    },
+    {
+      "name": "두부",
+      "candidates": {
+        "toadsam": 1,
+        "kangsogo7": 1,
+        "healthlog": 1
+      },
+      "rejected": [
+        {
+          "anchor": "healthlog",
+          "basis": "100g",
+          "disagree": [
+            "kangsogo7"
+          ],
+          "anchor_kcal": 97.0
+        }
+      ]
+    }
+  ],
+  "cross_checked": 104,
+  "single_mirror": 20,
+  "anchored_by_official_code": 37,
+  "basis_100ml_values_withheld": [
+    "흑미밥",
+    "검정콩밥",
+    "돌솥비빔밥_양념장",
+    "짜장밥",
+    "참치덮밥",
+    "주먹밥",
+    "흰죽",
+    "미역 된장국",
+    "콩나물 황태국",
+    "어묵국",
+    "뼈다귀해장국",
+    "연두부찌개",
+    "짜장면",
+    "우동",
+    "스파게티",
+    "돼지불고기_간장",
+    "소갈비찜",
+    "수육_소고기",
+    "탕수육",
+    "메추리알장조림",
+    "갈치구이",
+    "꽁치구이",
+    "새우튀김",
+    "달걀찜",
+    "두부 달걀탕",
+    "해물파전",
+    "녹두전",
+    "감자샐러드",
+    "과일샐러드",
+    "카페라떼",
+    "옥수수구이"
+  ],
+  "chosen_over_primary_mirror": [
+    {
+      "name": "현미밥",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 120.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 172.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "잡곡밥",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 131.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 146.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "비빔밥",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 133.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 142.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "미역국",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 11.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 12.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "콩나물국",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 5.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 6.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "삼계탕",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 88.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 101.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "라면",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 79.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 82.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "짬뽕",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 86.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 58.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "멸치볶음",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 114.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 276.0,
+      "anchor": "healthlog"
+    },
+    {
+      "name": "두부조림",
+      "toadsam_basis": "100ml",
+      "toadsam_kcal": 142.0,
+      "chosen_basis": "100g",
+      "chosen_kcal": 143.0,
+      "anchor": "healthlog"
+    }
+  ],
+  "mirrors": {
+    "toadsam": {
+      "repo": "toadsam/Ajou_MuscleUp",
+      "commit": "6c3623143ce37ea7fac93ebaaec25e4722a812ce",
+      "file": "backend/src/main/resources/food/foods.tsv.gz"
+    },
+    "carb": {
+      "repo": "minseok08262-web/carb-loading-tracker",
+      "commit": "152a0a41870859630f2b46a9c270a29187e75040",
+      "file": "data/foods-db.json"
+    },
+    "kangsogo7": {
+      "repo": "kangsogo7/meal-log",
+      "commit": "a51bb95dfdc5f1a03caa14ccf35f40e51891cdaf",
+      "file": "public/food-db.json"
+    },
+    "healthlog": {
+      "repo": "sirloinbh/health-log",
+      "commit": "3b78a6de69e41dc6b491d08cb1238baec1a52ad8",
+      "file": "database/migrations/005_foods_popular.sql"
+    }
+  },
+  "bundled_rows": 124,
+  "rows_with_values": 93
+}

@@ -5,7 +5,7 @@ Schema changes are additive: each statement is idempotent so `init_db` can run
 on every start without losing data.
 """
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS nutrition_references (
     is_demo             INTEGER NOT NULL DEFAULT 1,
     updated_at          TEXT NOT NULL
 );
+-- iteration 2 columns are added by db.migrate() (PRAGMA table_info based, idempotent)
 
 CREATE TABLE IF NOT EXISTS meal_items (
     id                    TEXT PRIMARY KEY,
@@ -135,6 +136,103 @@ CREATE TABLE IF NOT EXISTS meal_analyses (
     created_at      TEXT NOT NULL
 );
 
+-- ---------------------------------------------------------------- meal diary (iteration 2)
+CREATE TABLE IF NOT EXISTS meal_logs (
+    id              TEXT PRIMARY KEY,
+    log_date        TEXT NOT NULL,          -- YYYY-MM-DD, fixed at parse time (APP_TIMEZONE)
+    meal_type       TEXT NOT NULL CHECK (meal_type IN ('breakfast', 'lunch', 'dinner', 'snack')),
+    source          TEXT NOT NULL CHECK (source IN ('voice', 'analysis', 'manual')),
+    meal_session_id TEXT,
+    analysis_id     TEXT UNIQUE,            -- one log per analysis (from-session idempotency)
+    idempotency_key TEXT UNIQUE,
+    utterance       TEXT,
+    note            TEXT,
+    created_at      TEXT NOT NULL,
+    deleted_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_meal_logs_date ON meal_logs(log_date, meal_type);
+
+-- Values are SNAPSHOTS at logging time: later reference updates never change history.
+CREATE TABLE IF NOT EXISTS meal_log_items (
+    id                 TEXT PRIMARY KEY,
+    log_id             TEXT NOT NULL REFERENCES meal_logs(id) ON DELETE CASCADE,
+    position           INTEGER NOT NULL,
+    food_name          TEXT NOT NULL,
+    spoken_text        TEXT,
+    nutrition_ref_id   TEXT,
+    ref_source         TEXT,
+    ref_verification   TEXT,
+    ref_is_demo        INTEGER NOT NULL DEFAULT 0,
+    quantity           REAL,
+    unit               TEXT,
+    grams              REAL,
+    grams_basis        TEXT NOT NULL CHECK (grams_basis IN ('stated', 'serving_size', 'analysis', 'unknown')),
+    volume_ml          REAL,               -- 1인분 volume for 100 mL-basis foods (never converted to g)
+    kcal_per_100g      REAL,
+    carbs_g_per_100g   REAL,
+    protein_g_per_100g REAL,
+    fat_g_per_100g     REAL,
+    kcal               REAL,
+    carbs_g            REAL,
+    protein_g          REAL,
+    fat_g              REAL,
+    null_reason        TEXT,
+    is_estimate        INTEGER NOT NULL DEFAULT 1
+);
+
+-- ---------------------------------------------------------------- inventory <-> Excel (iteration 2)
+-- key/value state: change_seq (bumped by triggers on every product/stock change), exported_seq, ...
+CREATE TABLE IF NOT EXISTS excel_sync_state (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO excel_sync_state(key, value) VALUES ('change_seq', '0');
+INSERT OR IGNORE INTO excel_sync_state(key, value) VALUES ('exported_seq', '0');
+
+-- One row per SUCCESSFUL export (a 'writing' row exists only between temp-file write and replace).
+-- The snapshot (deduplicated by content hash) is the merge BASELINE for files carrying this export_id.
+-- Retention: newest KEEP_EXPORTS (50) + the export_id currently written in the file.
+CREATE TABLE IF NOT EXISTS excel_snapshots (
+    sha           TEXT PRIMARY KEY,
+    snapshot_json TEXT NOT NULL,
+    created_at    TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS excel_exports (
+    export_id     TEXT PRIMARY KEY,
+    path          TEXT NOT NULL,
+    change_seq    INTEGER NOT NULL,
+    snapshot_sha  TEXT NOT NULL REFERENCES excel_snapshots(sha),
+    sha256        TEXT,
+    status        TEXT NOT NULL CHECK (status IN ('writing', 'written')),
+    created_at    TEXT NOT NULL
+);
+
+-- Every applied external edit (file content) — never applied twice (file_sha UNIQUE).
+CREATE TABLE IF NOT EXISTS excel_imports (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    export_id           TEXT NOT NULL,
+    file_sha256         TEXT NOT NULL UNIQUE,
+    excel_snapshot_json TEXT NOT NULL,
+    result_json         TEXT NOT NULL,
+    applied_at          TEXT NOT NULL
+);
+
+-- conflicts / warnings / applied changes for status and audit
+CREATE TABLE IF NOT EXISTS excel_sync_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    product_id TEXT,
+    detail     TEXT
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_products_insert_seq AFTER INSERT ON products BEGIN
+    UPDATE excel_sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'change_seq';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_products_update_seq AFTER UPDATE ON products BEGIN
+    UPDATE excel_sync_state SET value = CAST(value AS INTEGER) + 1 WHERE key = 'change_seq';
+END;
+
 -- ---------------------------------------------------------------- ops
 -- Request log without bodies, tokens or photo content.
 CREATE TABLE IF NOT EXISTS api_logs (
@@ -147,3 +245,27 @@ CREATE TABLE IF NOT EXISTS api_logs (
     error_code  TEXT
 );
 """
+
+
+# Columns added after SCHEMA_VERSION 1. db.migrate() adds the missing ones (ALTER TABLE ADD COLUMN).
+MIGRATION_COLUMNS = {
+    "nutrition_references": [
+        ("category", "TEXT"),
+        ("sugars_g_per_100g", "REAL"),
+        ("sodium_mg_per_100g", "REAL"),
+        ("serving_size_g", "REAL"),
+        ("serving_unit", "TEXT"),
+        ("basis", "TEXT"),
+        ("food_code", "TEXT"),
+        ("source_url", "TEXT"),
+        ("retrieved_at", "TEXT"),
+        ("verification", "TEXT NOT NULL DEFAULT 'demo_mock'"),
+        ("serving_size_ml", "REAL"),
+        ("micro_verification", "TEXT"),
+        ("source_file", "TEXT"),                       # bundled CSV the row came from (review R-5)
+        ("retired", "INTEGER NOT NULL DEFAULT 0"),     # 1 = removed from its bundle: kept for past logs only
+    ],
+    "meal_log_items": [
+        ("volume_ml", "REAL"),
+    ],
+}

@@ -1,7 +1,7 @@
 <script def>
 {
   "navigationBarTitleText": "Dual PoC",
-  "description": "Home: choose Inventory or Meal Analysis. Shows whether a server is configured."
+  "description": "Home: choose Inventory, Meal Analysis or Meal Diary. Shows whether a server is configured."
 }
 </script>
 
@@ -32,6 +32,10 @@ export default {
     this.go('/pages/meal/meal');
   },
 
+  openDiary() {
+    this.go('/pages/diary/diary');
+  },
+
   go(url) {
     this.setData({ navError: '' });
     wx.navigateTo({
@@ -50,6 +54,7 @@ export default {
     <view class="menu">
       <button class="item" bindtap="openInventory">{{t.inventory}}</button>
       <button class="item" bindtap="openMeal">{{t.meal}}</button>
+      <button class="item" bindtap="openDiary">{{t.diary}}</button>
     </view>
     <text class="error" ink:if="{{navError}}">! {{navError}}</text>
   </view>

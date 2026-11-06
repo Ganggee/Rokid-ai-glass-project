@@ -88,6 +88,21 @@ def main(argv=None) -> int:
         rice = next(f for f in r["foods"] if f["label"] == "밥")
         kimchi = next(f for f in r["foods"] if f["label"] == "김치")
         step("grams only where serving given", rice["estimated_consumed_grams"] is not None and kimchi["kcal"] is None)
+    # Task 2b: voice meal diary (text path, same parser as voice)
+    pc = s.post(base + "/api/v1/meal-logs/parse-command", json={"text": "어제 저녁 김밥 1인분이랑 배추김치 먹었어"}, timeout=10)
+    step("diary parse (no write)", pc.ok and pc.json()["intent"] == "record", pc.text[:160] if not pc.ok else "")
+    if pc.ok and pc.json()["requires_confirmation"]:
+        cmd = pc.json()
+        saved = s.post(base + "/api/v1/meal-logs", json={
+            "log_date": cmd["date"], "meal_type": cmd["meal_type"], "confirmed": True, "idempotency_key": "smoke-" + uuid.uuid4().hex,
+            "items": [{"food_name": i["food_name"], "nutrition_ref_id": i["nutrition_ref_id"], "quantity": i["quantity"],
+                       "unit": i["unit"]} for i in cmd["items"]]}, timeout=10)
+        step("diary save (confirmed)", saved.ok)
+        summ = s.get(base + "/api/v1/meal-logs/summary", params={"date": cmd["date"]}, timeout=10).json()
+        print("speech_text:", summ["speech_text"])
+        step("diary summary speech_text <= 150 chars", len(summ["speech_text"]) <= 150)
+        if saved.ok:
+            s.delete(base + f"/api/v1/meal-logs/{saved.json()['log']['id']}", params={"confirmed": True}, timeout=10)
     s.delete(base + f"/api/v1/meals/{sid}", timeout=10)
     print("RESULT", "PASS" if ok else "FAIL")
     return 0 if ok else 1

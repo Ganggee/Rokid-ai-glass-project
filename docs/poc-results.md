@@ -64,3 +64,58 @@
 2. HTTPS 엔드포인트 확보 후 SERVER 모드 실기기 시험.
 3. 실제 식사 사진(동의) 10–20세트로 Baseline 오차 측정, 필요 시 SAM 2 플러그인 실험.
 4. 실제 Excel·QR 내용으로 매핑 확정.
+
+# Iteration 2 results (2026-11-06, development sandbox — after review 04 / advisor 05 fixes)
+
+## Round 2 (review 04 + advisor 05 conditions) 재실측
+| 명령 | 결과 |
+|---|---|
+| `python -m pytest -q` | **213 passed** (43 s) — Excel 42(+F-1 경합 4, R-1 5, R-9, X-5), 일지 110, 영양 21, iteration 1 40 |
+| `node aiui-agent/tests/run-aiui-checks.mjs --aiui-repo /tmp/aiui-src/jsar --with-server` | **24/24**, validator issues 0 |
+| `python scripts/validate_nutrition_csv.py …public.csv …demo.csv` | 124 / 6 rows, 0 failing |
+| `python scripts/soak_inventory_excel.py --seed 4242` / `--seed 2026` (2000 사용, 수정 60, 재연결 6) | 둘 다 **PASS** (97.5 s / 96.6 s; 파일 버전마다 사람 수정을 추적하느라 이전보다 느림). 새 불변조건 **사람 재고 수정 합계 보존**: Σ excel_sync adjust = 387 / 278 = Σ 사람 수정(보고된 음수 병합 0). 90일 보관창이라 exports·snapshots 최대 590 / 580행(압축 스냅숏 최대 747 B), DB 1.5 MB |
+| `test_f1_high_frequency_uses_with_concurrent_human_saves_preserve_every_edit` (실제 poller 0.02 s, 초당 약 20회 사용 + 사람 저장 25회, 일부는 오래된 사본) | 사람 수정 합계 = excel_sync adjust 합계(제품별 정확히 일치), Excel == DB. 3회 반복 PASS. **수정 전에는 97 중 62만 반영**(재현 후 수정) |
+| 실제 uvicorn(한글 경로) + `scripts/smoke_test.py` | `RESULT PASS`. 시작 직후 status `ok`("Excel 파일과 데이터베이스가 일치합니다.", X-5), 종료 후 `ok`, pending 없음, `cas_mode=link` |
+
+변경 요약: Excel 내보내기 compare-and-swap(F-1), 보관창 90일·해결 동작(R-1), LibreOffice 잠금(R-9), 시작 직후 상태(X-5); DEMO 자동 확정 금지(R-4), 번들에서 빠진 행 retired(R-5), HUD 목록 동기화(R-7); '떡볶이랑' 등 사전 우선 분리(R-2), 띄어 쓴 '하고', '엊저녁'(M-3), '아까/방금'(R-3), '마셨어/…에서/이었어/밤에'(R-6). 상세: `docs/review/03-coder-response.md` Round 2.
+
+## Round 1 (review 02 이후) 기록
+
+역할 분담: 지도교수(계획·합격 기준) → 코더(구현) → 토의자(독립 검증, `docs/review/02-reviewer-findings.md`: 조건부 불합격) → 코더 수정(`docs/review/03-coder-response.md`) → 지도교수 최종 판단. 아래 수치는 수정 후 다시 실측한 값입니다.
+
+| 기능 | UNIT | API E2E | AIUI 로직 하네스 | AIUI SIM | RV101 | 판정 |
+|---|---|---|---|---|---|---|
+| 공개 영양 DB 124행(대표 행 선정 규칙·검증 등급) + 검증기 | PASS | — | — | — | — | 가능(미러 기반, 아래 한계 1) |
+| 공식 파일/API 임포터, 빈 기준량 버그 수정 | PASS(픽스처) | — | — | — | — | 코드 완료, 공식 파일 실데이터 **NOT VERIFIED** |
+| 음성 식사 기록: 파싱 → 확인 → 저장(멱등) | PASS(파서 표 + 회귀 표) | PASS | PASS | NOT VERIFIED | NOT VERIFIED | 가능(한국어 STT 미확인) |
+| 날짜로 조회 / 읽어 주기(TTS) | PASS | PASS | PASS(speak 1회, 미지원 폴백) | NOT VERIFIED | NOT VERIFIED | 화면 가능, 한국어 음성 **미확인** |
+| 분석 결과 → 일지 기록(분석당 1건) | PASS | PASS | PASS | — | — | 가능 |
+| 재고 ↔ Excel 내보내기/병합/잠금/충돌/안전 자동 반영 | PASS(30) | PASS(API·실제 poller) | — | — | — | 가능(실제 OneDrive/Drive 클라이언트 **NOT VERIFIED**, `--workers 1` 전제) |
+| 장기 사용 soak | PASS | — | — | — | — | 아래 수치 |
+
+실행 증거 (2026-11-06 재실행)
+- `python -m pytest -q` → **159 passed** (iteration 1의 40 포함; Excel 30, 일지 72, 영양 17).
+- `node aiui-agent/tests/run-aiui-checks.mjs --with-server` → **24/24** (공식 validator issues 0; A-1 응답 유실 시나리오 추가).
+- `python scripts/smoke_test.py` (실제 uvicorn, `INVENTORY_XLSX_PATH`=한글·공백 파일명, poll 1 s) → `RESULT PASS`; 종료 후 status `state ok`, `up_to_date`, pending 없음; `/admin/inventory-sync` 200.
+- `python scripts/validate_nutrition_csv.py …public.csv …demo.csv` → 124 rows 0 failing / 6 rows 0 failing. 인자 없이 실행 → 사용법 출력, exit 2.
+- `python -I scripts/build_nutrition_reference.py --mirrors /tmp/nutri-mirrors` → curated 175, 미러에 없음 1, **합의 없음으로 제외 50**, `mirror_cross_checked` 104, `single_mirror` 20 → **번들 124행(값 있음 93행)**. 이 중 37행은 health-log의 공식 식품코드 행이 기준(anchor), 10행은 1차 미러(toadsam)의 행 대신 다른 동명 행이 선택됨(예: 현미밥 120 kcal/100 mL → 172 kcal/100 g, D101-050000000-0001). 기준량 100 mL라 값을 비운 행 31. 상세: `sample-data/nutrition_reference_public.report.json`.
+- `python scripts/soak_inventory_excel.py --uses 2000 --edits 60 --restarts 6` (수정 종류 무작위: 재고 변경·새 행·바코드 복사된 ID 오타·행 삭제·잘못된 값; poller와 같은 안전 자동 반영 + 일부 수동 반영):
+
+| seed | 결과 | 시간 | 잠금 주입 | needs_review | 수동 반영 | 최대 행 수 exports/snapshots/imports/events | DB 크기 |
+|---|---|---|---|---|---|---|---|
+| 2026 | PASS | 36.1 s | 44 | 32 | 15 | 50 / 50 / 9 / 136 | 0.88 MB |
+| 7 | PASS | 35.0 s | 41 | 18 | 11 | 50 / 50 / 13 / 131 | 0.86 MB |
+| 99 | PASS | 36.6 s | 31 | 17 | 7 | 50 / 50 / 9 / 126 | 0.87 MB |
+
+  재기동은 프로세스 내 연결 재생성입니다. 실제 앱(lifespan poller 0.1 s + 동시 HTTP /use 30회 + Excel 수정 4회)은 `test_x6_real_app_poller_with_concurrent_http_and_edits`, 커밋 직후 중단 복구는 `test_crash_after_commit_before_export_is_recovered`로 따로 확인했습니다.
+
+한계
+1. 영양값은 공식 사이트가 아니라 **공개 미러 4곳의 재배포본**입니다. 네 곳 모두 같은 원천(MFDS·농진청)을 가공한 것이라 서로 독립적인 검증이 아닙니다. `mirror_cross_checked`는 "같은 원천의 같은 행이 여러 미러에 똑같이 옮겨져 있다"는 뜻이고, 공식 값과의 일치는 공식 파일 임포트(`official_file_import`)로만 확인됩니다.
+2. 같은 이름의 음식이 원자료에 여러 행(급식·외식 등)으로 있어, 미러들이 서로 다른 행을 고른 음식 50개는 합의가 없어 **제외**했습니다(부대찌개·추어탕·제육볶음·고등어구이 등). 원자료에 100 g 행이 없는 것이 아니라 대표 행을 정할 근거가 부족한 것입니다. 공식 파일을 임포트하면 채워집니다. (이전 문서의 "음식 DB의 상당수가 100 mL 기준" 설명은 1차 미러가 이름당 1행으로 중복을 제거한 결과를 원자료 성질로 잘못 설명한 것이라 정정합니다.)
+3. 기준량이 100 mL인 31행은 kcal을 계산하지 않고 1인분을 `serving_size_ml`(mL)로만 보여 줍니다(mL→g 환산 금지).
+4. 1회 제공량(1인분)은 집단 참고량입니다. '공기', '개' 같은 단위는 원자료에 없어 g을 추정하지 않습니다. 당류·나트륨은 미러 1곳 값(`micro_verification=single_mirror`)입니다.
+5. Excel 내보내기는 통합문서를 새로 쓰므로 사용자 서식·추가 시트·수식은 보존되지 않습니다(수식 셀은 invalid로 보고). 셀 하나라도 잘못되면 그 파일 전체의 자동 반영·내보내기가 보류됩니다(설계).
+7. 내보내기 경합: 하드 링크를 지원하는 폴더에서는 사람의 저장본을 덮어쓰지 않습니다(`cas_mode=link`). 지원하지 않는 폴더(일부 가상 드라이브)에서는 `os.replace`로 대체되어 아주 짧은 경합 구간이 남습니다(`cas_mode=replace`). 실제 OneDrive/Google Drive 폴더의 하드 링크 지원 여부는 **NOT VERIFIED**.
+8. 병합 기준 보관 범위(최근 50회 또는 90일, 최대 5000 + 하루 1개)를 벗어난 사본은 `blocked` → 관리 화면에서 명시적으로 해결해야 합니다.
+9. '1인분'은 원자료의 식품중량 열입니다(쌀밥 100 g). 집에서 먹는 한 공기와 다를 수 있습니다.
+6. 실제 OneDrive/Google Drive 동기화 클라이언트와 Windows 파일 잠금은 시뮬레이션(PermissionError 주입, `~$` 잠금 파일, 잘린 zip)으로만 시험했습니다. 여러 워커 프로세스 사이 잠금은 없으므로 서버는 `--workers 1`로 실행해야 합니다.

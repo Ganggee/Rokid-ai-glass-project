@@ -67,3 +67,16 @@ export function recognizeOnce(lang, timeoutMs) {
     rec.start();
   });
 }
+
+// Text-to-speech via the documented shared player: speechSynthesis.speak(utterance, 'enqueue').
+// Korean output is NOT VERIFIED (utterance.lang is documented as unsupported). Returns false when
+// TTS is unavailable so the page keeps the HUD text as the primary output.
+export function speakText(text) {
+  if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance !== 'function' || !text) return false;
+  try {
+    speechSynthesis.speak(new SpeechSynthesisUtterance(String(text)), 'enqueue');
+    return true;
+  } catch (error) {
+    return false;
+  }
+}

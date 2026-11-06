@@ -47,3 +47,25 @@ python scripts\eval_synthetic_meals.py --n 20 --out reports\synthetic_eval.json
 ## 4. 결과 기록 규칙
 - 성공은 스크린샷/서버 로그(`api_logs`, `inventory_transactions`)로 증빙.
 - 측정하지 않은 정확도·성공률은 쓰지 않는다. 합성 이미지 수치는 "synthetic"으로만 표기.
+
+## 5. Iteration 2 추가 항목
+자동:
+```powershell
+python scripts\validate_nutrition_csv.py sample-data\nutrition_reference_public.csv sample-data\nutrition_demo.csv
+python scripts\soak_inventory_excel.py --seed 2026 --uses 2000 --edits 60 --restarts 6
+```
+Simulator / 실기기 (사용자):
+| # | 시나리오 | 기대 결과 | 결과 |
+|---|---|---|---|
+| S11 | Home → 식사 일지 → 음성 "어제 저녁 김밥 1인분이랑 배추김치 먹었어" | 확인 화면에 전체 날짜·끼니·항목(g/kcal 또는 미상). 저장 전 서버 기록 없음 | |
+| S12 | 확인 화면에서 취소 / 저장 | 취소=기록 없음, 저장=1건 | |
+| S13 | "어제 저녁 기록 읽어줘" | HUD 요약 + 음성 1회(한국어 발음 여부 기록) | |
+| S14 | "내일 아침 기록", "오늘 기록 김밥" | 미래 날짜 안내 / 끼니 질문 | |
+| S15 | 식사 분석 결과 → 식사 기록 → 점심 (두 번) | 기록 1건 | |
+| D16 | RV101 STT가 날짜를 어떤 형태로 주는지(숫자/한글 수사) | "인식: …" 문구로 기록 | |
+| D17 | RV101 TTS 한국어 출력 | 들리는지/언어 | |
+| X1 | 서버 PC: `.env` `INVENTORY_XLSX_PATH`=OneDrive 폴더, 서버 시작 | 파일 생성(inventory/transactions 시트) | |
+| X2 | 안경에서 1개 사용 → 5초 후 Excel 파일 | 재고 −1 | |
+| X3 | Excel에서 재고 +10 저장(AUTO_APPLY=true) | 서버 재고 +10, `adjust`(excel_sync) 1건 | |
+| X4 | Excel을 열어둔 채 안경에서 사용 | `/use` 성공, status `pending_locked`; 닫으면 반영 | |
+| X5 | 두 PC에서 동시 수정 → `inventory (1).xlsx` 생성 | status 경고, 충돌 사본은 반영 안 됨 | |

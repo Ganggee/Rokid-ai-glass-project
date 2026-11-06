@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,7 +26,35 @@ APP_VERSION = "0.1.0"
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
+
+    @asynccontextmanager
+    async def lifespan(app_: FastAPI):
+        poller = None
+        if settings.inventory_xlsx_path is not None:
+            from .services import excel_sync
+
+            observed: dict = {}
+            c = connect(settings.database_path)
+            try:  # export changes left pending by a crash / merge edits made while the server was down
+                excel_sync.sync_once(c, settings.inventory_xlsx_path, apply=settings.inventory_xlsx_auto_apply,
+                                     policy=settings.inventory_xlsx_merge_policy, auto=True, observed=observed)
+            except Exception:
+                log.exception("initial Excel sync failed")
+            finally:
+                c.close()
+            if settings.inventory_xlsx_poll_seconds > 0:
+                poller = excel_sync.Poller(settings, connect)
+                poller.observed = observed  # first poll compares against the startup stat (review X-5)
+                poller.start()
+                app_.state.excel_notify = poller.notify
+        try:
+            yield
+        finally:
+            if poller is not None:
+                poller.stop()
+
     app = FastAPI(
+        lifespan=lifespan,
         title="Rokid AI Glasses Dual PoC API",
         version=APP_VERSION,
         description="Task 1 inventory (persistent, idempotent stock use) and Task 2 before/after meal photo analysis. "
@@ -33,13 +62,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "technical PoC, not a clinical dietary assessment.",
     )
     app.state.settings = settings
+    app.state.excel_notify = lambda: None
 
     conn = connect(settings.database_path)
     try:
         init_db(conn)
         from .services.nutrition_lookup import ensure_seeded
 
-        ensure_seeded(conn, settings.nutrition_csv)
+        ensure_seeded(conn, settings.nutrition_csvs)
     finally:
         conn.close()
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -83,10 +113,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from .routers import inventory
 
-    from .routers import admin, meals, nutrition
+    from .routers import admin, meal_logs, meals, nutrition
 
     app.include_router(inventory.router)
     app.include_router(meals.router)
+    app.include_router(meal_logs.router)
     app.include_router(nutrition.router)
     app.include_router(admin.router)
     return app

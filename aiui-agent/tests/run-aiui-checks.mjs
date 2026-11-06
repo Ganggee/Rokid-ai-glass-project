@@ -50,7 +50,7 @@ const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 // ------------------------------------------------------------------ runtime mocks
 function makeRuntime(opts = {}) {
   const storage = opts.storage || new Map();
-  const state = { storageFailure: false, navigation: [], photo: opts.photo || null, speech: opts.speech || [] };
+  const state = { storageFailure: false, navigation: [], photo: opts.photo || null, speech: opts.speech || [], spoken: [], requests: [] };
   const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
   const wx = {
     setStorageSync(k, v) { if (state.storageFailure) throw new Error('storage unavailable'); storage.set(k, clone(v)); },
@@ -84,6 +84,12 @@ function makeRuntime(opts = {}) {
     AbortController, setTimeout, clearTimeout, crypto: webcrypto, console: { log() {}, error() {}, warn() {} },
   };
   if (opts.speechEnabled) globals.SpeechRecognition = SpeechRecognition;
+  if (opts.tts) {
+    globals.SpeechSynthesisUtterance = class { constructor(text) { this.text = text || ''; this.lang = 'en-US'; } };
+    globals.speechSynthesis = { speak(u, mode) { state.spoken.push({ text: u.text, mode }); } };
+  }
+  const baseFetch = globals.fetch;
+  globals.fetch = async (url, init) => { state.requests.push({ url: String(url), method: (init && init.method) || 'GET' }); return baseFetch(url, init); };
   return { storage, state, globals };
 }
 
@@ -114,7 +120,7 @@ function freePort() {
 }
 class Backend {
   constructor(dir) { this.dir = dir; this.db = path.join(dir, 'harness.sqlite3'); this.proc = null; }
-  env() { return { ...process.env, API_TOKEN: TOKEN, DATABASE_PATH: this.db, UPLOAD_DIR: path.join(this.dir, 'uploads'), NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost' }; }
+  env() { return { ...process.env, API_TOKEN: TOKEN, DATABASE_PATH: this.db, NUTRITION_CSV: 'sample-data/nutrition_reference_public.csv,sample-data/nutrition_demo.csv', INVENTORY_XLSX_PATH: '', UPLOAD_DIR: path.join(this.dir, 'uploads'), NO_PROXY: '127.0.0.1,localhost', no_proxy: '127.0.0.1,localhost' }; }
   seed() { execFileSync(PYTHON, ['scripts/seed_demo_data.py', '--reset'], { cwd: ROOT, env: this.env(), stdio: 'pipe' }); }
   async start() {
     this.port = this.port || await freePort();
@@ -336,6 +342,10 @@ if (WITH_SERVER) {
     if (fs.existsSync(path.join(AGENT, 'pages/meal/meal.ink'))) {
       const { mealScenarios } = await import(pathToFileURL(path.join(here, 'meal-scenarios.mjs')));
       await mealScenarios({ check, assert, tick, openPage, makeRuntime, makeImage, ws, tmp, backend });
+    }
+    if (fs.existsSync(path.join(AGENT, 'pages/diary/diary.ink'))) {
+      const { diaryScenarios } = await import(pathToFileURL(path.join(here, 'diary-scenarios.mjs')));
+      await diaryScenarios({ check, assert, tick, openPage, makeRuntime, ws, backend });
     }
   } finally {
     await backend.stop();

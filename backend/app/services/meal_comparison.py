@@ -119,8 +119,9 @@ def save_photo(conn: sqlite3.Connection, upload_dir: Path, sid: str, kind: str, 
               "stored_bytes": len(clean), "previous_status": session["status"]}
     if kind == "before":
         result["detected_regions"] = detected or []
-        result["label_options"] = [{"id": r["id"], "food_name": r["food_name"], "is_demo": r["is_demo"]}
-                                   for r in nutrition_lookup.list_references(conn)]
+        result["label_options"] = [{"id": r["id"], "food_name": r["food_name"], "is_demo": r["is_demo"],
+                                    "verification": r["verification"]}
+                                   for r in nutrition_lookup.hud_label_options(conn)]
         result["note"] = ("Regions are unlabelled colour/texture candidates. White food on white plates is often "
                           "missed; draw regions in the PC admin page if needed.")
     return result
@@ -274,9 +275,13 @@ def analyze(conn: sqlite3.Connection, upload_dir: Path, sid: str, method: str = 
         if it.get("nutrition_ref_id"):
             ref = nutrition_lookup.get_reference(conn, it["nutrition_ref_id"])
         elif not it["label"].startswith("UNLABELED"):
-            ref = nutrition_lookup.resolve_label(conn, it["label"])
+            m = nutrition_lookup.match(conn, it["label"])
+            ref = m["exact"]
             if ref:
-                assumptions.append(f"label '{it['label']}' matched nutrition reference '{ref['food_name']}' by name")
+                assumptions.append(f"label '{it['label']}' matched nutrition reference '{ref['food_name']}' by exact name")
+            elif m["candidates"]:
+                warnings.append("no exact nutrition match; candidates: "
+                                + ", ".join(c["food_name"] for c in m["candidates"][:3]) + " - choose one")
         if it.get("before_region") and it.get("after_region") and method in ("auto", "manual", "model"):
             m = cvb.measure_manual(it["before_region"], it["after_region"], alignment)
         elif it.get("before_region") and method != "manual":
