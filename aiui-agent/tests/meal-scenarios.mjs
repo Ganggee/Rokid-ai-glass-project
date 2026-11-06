@@ -38,12 +38,22 @@ export async function mealScenarios({ check, assert, tick, openPage, makeRuntime
     assert(r.resultLines.length === 2, 'two labelled foods, got ' + JSON.stringify(r.resultLines));
     assert(/%/.test(r.resultLines[0].line) && /g/.test(r.resultLines[0].line), 'ratio and grams on line 1: ' + r.resultLines[0].line);
     assert(/g 미입력|no grams/.test(r.resultLines[1].line), 'no grams on line 2 -> not computable: ' + r.resultLines[1].line);
-    assert(r.isDemo === true, 'DEMO flagged (mock nutrition values)');
     const sid = rt.storage.get('meal.session.v1').sid;
     const s = await backend.api('/api/v1/meals/' + sid);
     assert(s.status === 'analyzed' && s.items.length === 2, 'server session analyzed');
     const res = await backend.api('/api/v1/meals/' + sid + '/results');
     assert(res.foods[0].initial_serving_grams === 200 && res.foods[1].kcal === null, 'server-side policy holds');
+    assert(r.isDemo === Boolean(res.is_demo), 'HUD DEMO badge mirrors the server flag');
+
+    // log the analysed meal in the diary (twice -> one log)
+    await p.call('chooseLogMeal');
+    assert(p.data().view === 'logmeal', 'meal choice view');
+    await p.call('logMealAs', { meal: 'lunch' });
+    await p.call('chooseLogMeal');
+    await p.call('logMealAs', { meal: 'lunch' });
+    assert(/기록됨|Saved/.test(p.data().message), 'saved message: ' + p.data().message);
+    const logs = (await backend.api('/api/v1/meal-logs')).items.filter((l) => l.meal_session_id === sid);
+    assert(logs.length === 1 && logs[0].source === 'analysis', 'exactly one analysis log, got ' + logs.length);
   });
 
   await check('MEAL: camera failure -> error message, stays on capture step', async () => {

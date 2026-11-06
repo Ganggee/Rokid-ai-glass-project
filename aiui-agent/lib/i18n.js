@@ -67,6 +67,24 @@ const ko = {
   warnings: '경고',
   demo: 'DEMO',
   notComputable: '산출 불가',
+  // diary
+  diary: '식사 일지',
+  voiceLog: '음성 기록/조회',
+  today: '오늘',
+  yesterday: '어제',
+  prevDay: '이전 날',
+  nextDay: '다음 날',
+  readAloud: '읽어 주기',
+  save: '기록 저장',
+  confirmLog: '이대로 기록할까요?',
+  saved: '기록됨',
+  gramsUnknown: 'g 미상',
+  kcalUnknown: '열량 미상',
+  ttsUnavailable: '음성 출력 불가 - 화면 확인',
+  logMeal: '식사 기록',
+  chooseMeal: '끼니 선택',
+  breakfast: '아침', lunch: '점심', dinner: '저녁', snack: '간식',
+  switchCandidate: '후보 바꾸기',
 };
 
 const en = {
@@ -87,6 +105,11 @@ const en = {
   analyzing: 'Analyzing...', uploading: 'Uploading...', resultTitle: 'Meal analysis done', consumed: 'eaten',
   estimate: 'estimate', needServer: 'Meal analysis needs the server', restart: 'Start over', warnings: 'Warnings',
   demo: 'DEMO', notComputable: 'n/a',
+  diary: 'Meal diary', voiceLog: 'Voice log/view', today: 'Today', yesterday: 'Yesterday', prevDay: 'Prev day',
+  nextDay: 'Next day', readAloud: 'Read aloud', save: 'Save', confirmLog: 'Save this log?', saved: 'Saved',
+  gramsUnknown: 'g ?', kcalUnknown: 'kcal ?', ttsUnavailable: 'TTS unavailable - see HUD', logMeal: 'Log meal',
+  chooseMeal: 'Choose meal', breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack',
+  switchCandidate: 'Switch candidate',
 };
 
 export function strings() {

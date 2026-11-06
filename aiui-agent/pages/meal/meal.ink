@@ -7,6 +7,7 @@
 
 <script setup>
 import { describeError, isServerConfigured } from '../../lib/api-client.js';
+import { dateLabel, diaryClient } from '../../lib/diary-client.js';
 import { CONFIG } from '../../lib/config.js';
 import { capturePhoto } from '../../lib/device.js';
 import { strings } from '../../lib/i18n.js';
@@ -17,7 +18,7 @@ import {
 export default {
   data: {
     t: {},
-    view: 'start', // start | before | label | after | busy | result | noserver
+    view: 'start', // start | before | label | after | busy | result | logmeal | noserver
     sessionShort: '',
     regions: [],
     message: '',
@@ -201,6 +202,29 @@ export default {
     this.showResult(r.data);
   },
 
+  // ---------------------------------------------------------------- log the analysed meal in the diary
+  chooseLogMeal() {
+    if (!this.sid || this.busy) return;
+    this.setData({ view: 'logmeal', message: '' });
+  },
+
+  async logMealAs(event) {
+    const { t } = this.data;
+    const ds = (event && event.currentTarget && event.currentTarget.dataset) || (event && event.target && event.target.dataset) || {};
+    const meal = (event && event.meal) || ds.meal;
+    if (!meal || this.busy || !this.sid) return;
+    this.busy = true;
+    this.setData({ view: 'busy', busyText: t.saving });
+    const r = await diaryClient.fromSession(this.sid, meal); // idempotent per analysis on the server
+    this.busy = false;
+    if (!r.ok) { this.setData({ view: 'result', busyText: '', message: describeError(r, t) }); return; }
+    this.setData({ view: 'result', busyText: '', message: t.saved + ': ' + dateLabel(r.data.log.log_date, r.data.log.meal_type, CONFIG.UI_LANG) });
+  },
+
+  backToResult() {
+    this.setData({ view: 'result' });
+  },
+
   showResult(res) {
     const { t } = this.data;
     const lines = (res.foods || []).slice(0, 6).map((f, i) => ({ id: String(i), line: foodLine(f, t) }));
@@ -270,8 +294,20 @@ export default {
         <text ink:for="{{resultWarnings}}" class="warn">{{item.line}}</text>
       </scroll-view>
       <view class="actions">
+        <button class="act primary" bindtap="chooseLogMeal">{{t.logMeal}}</button>
         <button class="act" bindtap="analyze">{{t.analyze}}</button>
-        <button class="act primary" bindtap="restart">{{t.newMeal}}</button>
+        <button class="act" bindtap="restart">{{t.newMeal}}</button>
+      </view>
+    </view>
+
+    <view class="body" ink:elif="{{view === 'logmeal'}}">
+      <text class="name">{{t.chooseMeal}}</text>
+      <view class="actions">
+        <button class="act" data-meal="breakfast" bindtap="logMealAs">{{t.breakfast}}</button>
+        <button class="act" data-meal="lunch" bindtap="logMealAs">{{t.lunch}}</button>
+        <button class="act" data-meal="dinner" bindtap="logMealAs">{{t.dinner}}</button>
+        <button class="act" data-meal="snack" bindtap="logMealAs">{{t.snack}}</button>
+        <button class="act" bindtap="backToResult">{{t.back}}</button>
       </view>
     </view>
 

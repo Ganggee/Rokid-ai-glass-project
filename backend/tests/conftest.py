@@ -74,7 +74,8 @@ class LiveServer:
         self.proc: subprocess.Popen | None = None
 
     def start(self) -> None:
-        env = {**os.environ, "API_TOKEN": TOKEN, "DATABASE_PATH": str(self.db_path),
+        env = {**os.environ, "API_TOKEN": TOKEN, "DATABASE_PATH": str(self.db_path), "INVENTORY_XLSX_PATH": "",
+               "NUTRITION_CSV": "sample-data/nutrition_reference_public.csv,sample-data/nutrition_demo.csv",
                "UPLOAD_DIR": str(self.upload_dir), "NO_PROXY": "127.0.0.1,localhost", "no_proxy": "127.0.0.1,localhost"}
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "backend.app.main:create_app", "--factory",
