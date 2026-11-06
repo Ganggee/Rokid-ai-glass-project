@@ -83,10 +83,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     from .routers import inventory
 
-    from .routers import admin, meals, nutrition
+    from .routers import admin, meal_logs, meals, nutrition
 
     app.include_router(inventory.router)
     app.include_router(meals.router)
+    app.include_router(meal_logs.router)
     app.include_router(nutrition.router)
     app.include_router(admin.router)
     return app
