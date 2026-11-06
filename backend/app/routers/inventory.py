@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, Query, Request, UploadFile
+from pydantic import BaseModel, Field
 
 from .. import errors
 from ..config import Settings
@@ -14,7 +15,7 @@ from ..schemas import (
     ErrorResponse, ImportCommitRequest, ImportPreview, OperationStatus, ParseCommandRequest, ParsedCommand,
     Product, ProductList, ResolveCodeRequest, ResolveResult, TransactionList, UseRequest, UseResponse,
 )
-from ..services import image_recognition, inventory_service as inv
+from ..services import excel_sync, image_recognition, inventory_service as inv
 from ..services.image_io import read_image_from_request
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"], dependencies=[Depends(require_token)],
@@ -35,12 +36,14 @@ def get_product(product_id: str, conn=Depends(get_conn)):
 
 @router.post("/use", response_model=UseResponse,
              responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}})
-def use(body: UseRequest, conn=Depends(get_conn)):
+def use(body: UseRequest, request: Request, conn=Depends(get_conn)):
     """Decrement stock after explicit user confirmation. Idempotent per `idempotency_key`:
     resending the same key returns the original result with `replayed: true`."""
-    return inv.use_stock(conn, product_id=body.product_id, quantity=body.quantity,
-                         idempotency_key=body.idempotency_key, confirmed=body.confirmed,
-                         client_timestamp=body.client_timestamp, source=body.source, note=body.note)
+    result = inv.use_stock(conn, product_id=body.product_id, quantity=body.quantity,
+                           idempotency_key=body.idempotency_key, confirmed=body.confirmed,
+                           client_timestamp=body.client_timestamp, source=body.source, note=body.note)
+    request.app.state.excel_notify()  # Excel export runs in the background; never blocks or fails this request
+    return result
 
 
 @router.get("/operations/{idempotency_key}", response_model=OperationStatus)
@@ -105,6 +108,29 @@ async def import_preview(file: UploadFile = File(...), column_mapping: Optional[
 
 
 @router.post("/import/commit")
-def import_commit(body: ImportCommitRequest, conn=Depends(get_conn)):
+def import_commit(body: ImportCommitRequest, request: Request, conn=Depends(get_conn)):
     """Apply a previewed batch explicitly. `seed` never overwrites existing stock."""
-    return inv.commit_import(conn, body.batch_id, body.mode, body.skip_invalid_rows, source="import_api")
+    report = inv.commit_import(conn, body.batch_id, body.mode, body.skip_invalid_rows, source="import_api")
+    request.app.state.excel_notify()
+    return report
+
+
+class ExcelSyncRequest(BaseModel):
+    dry_run: bool = Field(default=True, description="true = preview the merge plan only (no DB or file change)")
+    confirmed: bool = Field(default=False, description="must be true when dry_run=false")
+
+
+@router.post("/excel-sync")
+def excel_sync_run(body: ExcelSyncRequest = Body(default=ExcelSyncRequest()), settings: Settings = Depends(get_settings),
+                   conn=Depends(get_conn)):
+    """Merge external Excel edits into SQLite (3-way, baseline = export snapshot) and export the current stock.
+    dry_run (default) returns the plan only."""
+    path = excel_sync.require_enabled(settings)
+    if not body.dry_run:
+        excel_sync.check_confirmed(body.confirmed)
+    return excel_sync.sync_once(conn, path, apply=True, policy=settings.inventory_xlsx_merge_policy, dry_run=body.dry_run)
+
+
+@router.get("/excel-sync/status")
+def excel_sync_status(settings: Settings = Depends(get_settings), conn=Depends(get_conn)):
+    return excel_sync.status(conn, settings.inventory_xlsx_path, settings)
