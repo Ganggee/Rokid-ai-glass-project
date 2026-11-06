@@ -30,5 +30,22 @@ python scripts\import_inventory.py sample-data\real\inventory.xlsx --mapping map
 
 Import 모드: `seed`(신규만 생성, 기존 재고 유지 — 재수입 안전) · `adjust`(기존 재고를 파일 값으로 조정, `adjust` 이력 기록) · `metadata`(이름/코드/LOT만 갱신).
 
+## Excel 동기화 (서버 SERVER 모드 전용)
+안경 LOCAL 모드의 재고는 안경 저장소의 JSON이라 Excel과 연결되지 않습니다. Excel 연동은 서버(SQLite 정본)에서 합니다.
+```powershell
+# .env
+INVENTORY_XLSX_PATH=C:\Users\<me>\OneDrive\Rokid\inventory.xlsx
+INVENTORY_XLSX_POLL_SECONDS=5
+INVENTORY_XLSX_AUTO_APPLY=true     # Excel에서 고친 값을 자동 반영(3-way 병합, 충돌 기록)
+```
+- 서버가 파일을 만들고, 재고가 바뀔 때마다 다시 씁니다. `inventory` 시트만 수정하세요(`transactions`는 읽기 전용, 숨김 `_sync` 시트는 지우지 마세요).
+- 파일을 열어 둔 동안에는 내보내기가 대기(pending)했다가 닫으면 반영됩니다.
+- 오래된 사본으로 덮어써도 그 사이의 안경 사용 기록은 되돌려지지 않습니다(export_id 기준 병합).
+- 행을 지워도 제품은 삭제되지 않고 다음 내보내기에서 복원됩니다. 새 행은 새 제품으로 추가됩니다.
+- 상태: `GET /api/v1/inventory/excel-sync/status`, 수동 반영: `POST /api/v1/inventory/excel-sync {"dry_run": false, "confirmed": true}`.
+
+## nutrition_reference_public.csv (공개 데이터)
+식약처 식품영양성분 데이터베이스(전국통합식품영양성분정보 표준데이터)를 재배포한 공개 GitHub 저장소 4곳에서 추출하고 서로 대조한 165행입니다. 각 행의 `source_detail`에 저장소@커밋, `verification`에 검증 등급이 있습니다. 재생성: `scripts/build_nutrition_reference.py`, 검증: `scripts/validate_nutrition_csv.py`. 공식 파일을 받으면 `scripts/import_nutrition_mfds.py --file …`로 1차 출처 값을 넣으세요(우선 적용). 출처표시: 식품의약품안전처 식품영양성분 데이터베이스.
+
 ## nutrition_demo.csv
 `source = DEMO_MOCK`, `is_demo = 1`. 파이프라인 시험용 임의값입니다. 실제 사용 전 MFDS OpenAPI(data.go.kr 15127578) 또는 검증된 표로 교체하세요.

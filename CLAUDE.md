@@ -27,4 +27,8 @@ python -m uvicorn backend.app.main:create_app --factory --host 127.0.0.1 --port 
 python -m pytest backend/tests -q
 node aiui-agent/tests/run-aiui-checks.mjs --aiui-repo <path-to-cloned-yodaos-project/AIUI>
 python scripts/smoke_test.py --base-url http://127.0.0.1:8000
+python scripts/validate_nutrition_csv.py sample-data/nutrition_reference_public.csv sample-data/nutrition_demo.csv
+python scripts/soak_inventory_excel.py --seed 2026
 ```
+7. Nutrition rows need provenance (`source_url`, `source_detail`, `verification`); never write values from memory.
+8. Excel sync never overwrites a file whose export_id is unknown; Excel is a mirror, SQLite is the truth.

@@ -64,3 +64,32 @@
 2. HTTPS 엔드포인트 확보 후 SERVER 모드 실기기 시험.
 3. 실제 식사 사진(동의) 10–20세트로 Baseline 오차 측정, 필요 시 SAM 2 플러그인 실험.
 4. 실제 Excel·QR 내용으로 매핑 확정.
+
+# Iteration 2 results (2026-11-06, development sandbox)
+
+역할 분담: 지도교수(계획·합격 기준) → 코더(구현) → 토의자(독립 검증) → 지도교수(최종 승인). 아래는 코더 단계의 실측입니다.
+
+| 기능 | UNIT | API E2E | AIUI 로직 하네스 | AIUI SIM | RV101 | 판정 |
+|---|---|---|---|---|---|---|
+| 공개 영양 DB 165행(출처·검증 등급) + 검증기 | PASS | — | — | — | — | 가능 |
+| 공식 파일/API 임포터, 빈 기준량 버그 수정 | PASS(픽스처) | — | — | — | — | 코드 완료, 공식 파일 실데이터 **NOT VERIFIED** |
+| 음성 식사 기록: 파싱 → 확인 → 저장(멱등) | PASS(파서 32케이스) | PASS | PASS | NOT VERIFIED | NOT VERIFIED | 가능(한국어 STT 미확인) |
+| 날짜로 조회 / 읽어 주기(TTS) | PASS | PASS | PASS(speak 1회, 미지원 폴백) | NOT VERIFIED | NOT VERIFIED | 화면 가능, 한국어 음성 **미확인** |
+| 분석 결과 → 일지 기록(분석당 1건) | PASS | PASS | PASS | — | — | 가능 |
+| 재고 ↔ Excel 내보내기/병합/잠금/충돌 | PASS(17) | PASS(API) | — | — | — | 가능(실제 OneDrive/Drive 클라이언트 **NOT VERIFIED**) |
+| 장기 사용 soak | PASS | — | — | — | — | 아래 수치 |
+
+실행 증거
+- `python -m pytest -q` → **107 passed** (iteration 1의 40 포함).
+- `node aiui-agent/tests/run-aiui-checks.mjs --with-server` → **23/23** (공식 validator issues 0).
+- `python scripts/smoke_test.py` (실제 uvicorn) → `RESULT PASS`; diary `speech_text` 예: "11월 5일 저녁 기록입니다. 총 약 360킬로칼로리, 추정입니다. 김밥, 배추김치."
+- `python scripts/validate_nutrition_csv.py …public.csv …demo.csv` → 165 rows 0 failing / 6 rows 0 failing.
+- `python -I scripts/build_nutrition_reference.py --mirrors /tmp/nutri-mirrors` → curated 175, 없음 1, 미러 간 불일치로 제외 9, `mirror_cross_checked` 142, `single_mirror` 23, 기준량 100 mL(값 비움) 65 → **번들 165행(값 있음 100행)**. 상세: `sample-data/nutrition_reference_public.report.json`.
+- `python scripts/soak_inventory_excel.py --seed 2026 --uses 2000 --edits 60 --restarts 6` → PASS, 34 s, 잠금 실패 주입 38회, 내보내기 593회, 외부 수정 반영 59건, 충돌 기록 53건. `--seed 7` → PASS(잠금 42, 반영 55, 충돌 43). 재기동은 프로세스 내 연결·상태 재생성이며 OS 프로세스 재시작은 `test_crash_after_commit_before_export_is_recovered`와 API 시작 시 동기화 테스트로 별도 확인.
+
+한계
+1. 영양값은 공식 사이트가 아니라 **공개 미러의 교차검증본**입니다. 공식 파일로 덮어쓰기 전까지 `verification`이 `mirror_cross_checked`/`single_mirror`로 표시됩니다.
+2. 음식 DB의 상당수(65/165)가 100 mL 기준이라 kcal을 계산하지 않습니다(mL→g 환산 금지 원칙).
+3. 1회 제공량(1인분)은 집단 참고량입니다. '공기', '개' 같은 단위는 원자료에 없어 g을 추정하지 않습니다.
+4. Excel 내보내기는 통합문서를 새로 쓰므로 사용자 서식·추가 시트·수식은 보존되지 않습니다.
+5. 실제 OneDrive/Google Drive 동기화 클라이언트와 Windows 파일 잠금은 시뮬레이션(PermissionError 주입, `~$` 잠금 파일, 잘린 zip)으로만 시험했습니다.

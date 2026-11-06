@@ -24,6 +24,8 @@
 | AIX 패키징 | 확인됨(문서) · 이 세션에서 미실행 | `documentation/0-guide/bundle/aix.*`, `aix pack`(`@yodaos-pkg/aix-cli`), `.aixignore` | `aiui-agent/.aixignore`(tests 제외). npm 레지스트리 차단으로 `aix` 미설치 → NOT VERIFIED | AIUI Studio **Build & Review → Package AIX** |
 | 안경 리소스 업데이트 | 확인됨(문서) · 사용자가 기존 Agent로 성공 경험 | Quickstart VI: Hi Rokid **Settings → Developer → Update glasses resource package** | docs/aiui-studio-deploy.md 절차 | — |
 | GitHub Import (Studio) | 확인됨(문서) · Private 저장소 접근 미확인 | Quickstart III Method 3 | `aiui-agent/` 단독 디렉터리로 Import 가능 구조 | **Local folder import** |
+| 음성 출력(TTS) | 확인됨(문서) · **한국어 NOT VERIFIED** | `apis/ai.md` — `speechSynthesis.speak(new SpeechSynthesisUtterance(text), 'enqueue'|'immediate')`; `utterance.lang`은 "not currently supported", 문서상 음성 ID는 중국어·영어만, `cancel()`/이벤트 없음 | `lib/device.js speakText()` — 식사 일지 '읽어 주기'에서 1회 호출. 문장은 서버가 ≤150자·≤3문장으로 생성 | HUD 텍스트가 항상 1차 출력 (`ttsUnavailable` 안내) |
+| 날짜·끼니 음성 명령 | 서버 파서 확인됨(테스트) · 실기기 STT 결과 형식 NOT VERIFIED | STT가 '십일월 육일' 같은 한글 수사로 줄 수 있음 → 서버가 정규화 | `POST /api/v1/meal-logs/parse-command` | 버튼(오늘/어제/이전·다음 날) |
 | 온디바이스 LLM 이미지 입력 | 문서 존재 · 미사용 | `apis/ai.md` LanguageModel `image_url` | 사용 안 함(음식 분류 확장 후보) | 서버 측 분류 |
 
 ## 공식 검증 도구 사용 결과

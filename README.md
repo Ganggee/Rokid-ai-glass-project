@@ -6,6 +6,9 @@ Rokid Glasses **RV101** + Hi Rokid + **AIUI Studio Global**에서 두 기능이 
 |---|---|---|
 | 1. 재고관리 | 목록·QR/바코드·제품 사진·음성으로 제품 조회 → **확인 후** 사용량 차감 → 재실행 후에도 유지 | 백엔드·AIUI 로직 구현/자동 테스트 통과. Simulator/실기기 **미검증** |
 | 2. 식단·영양 | 식전·식후 사진 → 음식별 **추정** 섭취 비율 → 제공량이 있을 때만 g·kcal·탄단지 | 백엔드·AIUI 로직 구현/합성 이미지 테스트 통과. 실사진/실기기 **미검증** |
+| 2b. 음성 식사 일지 (iter. 2) | "11월 6일 아침 김밥 1인분이랑 김치 먹었어" → 확인 후 기록, "어제 저녁 기록 읽어줘" → 화면+음성 | 서버·AIUI 로직 테스트 통과. 한국어 STT/TTS 실기기 **미검증** |
+| 1b. 재고 ↔ Excel (iter. 2) | 연동 폴더의 Excel로 내보내기·사람이 고친 값 3-way 병합·잠금/충돌 처리 | 테스트·soak(2000회) 통과. 실제 OneDrive/Drive 클라이언트 **미검증** |
+| 영양 DB (iter. 2) | 식약처 표준데이터 기반 165행(출처·검증 등급), 공식 파일 임포터 | 미러 교차검증 142행 |
 
 상세 결과: [`docs/poc-results.md`](docs/poc-results.md) · 실기기 체크리스트: [`docs/poc-test-plan.md`](docs/poc-test-plan.md)
 
@@ -33,9 +36,11 @@ python scripts\smoke_test.py --base-url http://127.0.0.1:8000
 
 ## 테스트
 ```powershell
-python -m pytest -q                                   # 40개: UNIT + API E2E(실제 서버 재기동 포함)
+python -m pytest -q                                   # 107개: UNIT + API E2E(실제 서버 재기동 포함)
 git clone --depth 1 https://github.com/yodaos-project/AIUI ..\AIUI
-node aiui-agent\tests\run-aiui-checks.mjs --aiui-repo ..\AIUI --with-server --python python   # 18개
+node aiui-agent\tests\run-aiui-checks.mjs --aiui-repo ..\AIUI --with-server --python python   # 23개
+python scripts\soak_inventory_excel.py --seed 2026  # 재고+Excel 장기 사용 시험
+python scripts\validate_nutrition_csv.py sample-data\nutrition_reference_public.csv sample-data\nutrition_demo.csv
 ```
 AIUI 검사는 공식 저장소의 `bench/src/validator.js`(정적 규칙)와 `bench/src/behavior.js`(페이지 로직 실행기)를 사용하며, 렌더링/실기기 검증이 아닙니다.
 

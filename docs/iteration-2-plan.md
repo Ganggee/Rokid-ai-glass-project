@@ -52,3 +52,16 @@ The official importer (`scripts/import_nutrition_mfds.py`) remains the primary p
 
 ## Quality bar
 All iteration-1 tests stay green; new unit/API tests per feature; AIUI validator 0 issues; harness extended; docs (api, capability matrix, test plan, results with honest levels) updated; CI green on GitHub.
+
+## Final design (as implemented, 2026-11-06)
+- **A. Nutrition**: `nutrition_reference_public.csv` 165 rows from 4 public mirrors of the MFDS standard data,
+  cross-checked by name + kcal/C/P/F (+ serving); provenance in `source_detail`; ranked by `verification`;
+  exact-match-only resolution; 100 mL basis → no per-100 g values; official importer ranks highest; validator script.
+- **B. Diary**: rule parser (`diary_parser.py`) with injectable clock, date fixed at parse, confirmation + idempotent
+  POST, gram policy (stated | count×serving only for matching unit | null+reason), per-item snapshots,
+  from-session idempotent per analysis, summary `speech_text` ≤150 chars / ≤3 sentences, soft delete.
+  AIUI `pages/diary/diary.ink` + meal result "식사 기록".
+- **C. Excel**: `excel_sync.py` — export_id baselines stored in `excel_exports`/`excel_imports`, triggers bump
+  `change_seq`, atomic replace, lock/unstable/truncated/conflict-copy handling, poller in FastAPI lifespan,
+  `merge_delta` default, AUTO_APPLY opt-in. LOCAL mode (glasses JSON in wx storage) has no Excel sync.
+- Deviations from the advisor rubric: see the coder report in the PR description.

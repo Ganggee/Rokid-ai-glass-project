@@ -67,3 +67,28 @@ Region: `{"type":"bbox","x":..,"y":..,"w":..,"h":..}` 또는 `{"type":"polygon",
 
 ## Schema (SQLite)
 `products`, `product_codes`, `inventory_transactions`(append-only), `import_batches`, `recognition_events`, `meal_sessions`, `meal_images`, `meal_items`, `nutrition_references`, `meal_analyses`, `api_logs` — 정의: `backend/app/models.py`.
+
+## Meal diary (iteration 2)
+| Method | Path | 설명 |
+|---|---|---|
+| POST | `/api/v1/meal-logs/parse-command` | `{text, now?}` → `{intent: record|view|read|confirm|cancel|unknown, date, date_status: ok|ask|future|out_of_range|missing, meal_type, items[] (영양 미리보기), questions[], warnings[], requires_confirmation}` — **쓰기 없음**. 날짜는 이 시점에 확정 |
+| POST | `/api/v1/meal-logs` | `{log_date, meal_type, items:[{food_name, nutrition_ref_id?, quantity?, unit?, grams?}], idempotency_key, confirmed, source?, utterance?}` → `{log, replayed}`. 영양값은 서버가 재계산 후 **스냅숏** 저장. 미래 날짜 422 `FUTURE_DATE`, 365일 초과 422 `DATE_OUT_OF_RANGE` |
+| POST | `/api/v1/meal-logs/from-session/{session_id}` | `{meal_type, log_date?, confirmed}` — 최신 분석 결과를 기록(분석당 1건, 재호출 `replayed`) |
+| GET | `/api/v1/meal-logs?date=&meal_type=` | 해당 날짜 기록(삭제 제외) |
+| GET | `/api/v1/meal-logs/summary?date=&meal_type=` | 합계, `totals_complete`, `has_demo`, `is_estimate`, `display_lines[]`, `speech_text`(≤150자·≤3문장, 미상·추정·DEMO 표기) |
+| GET | `/api/v1/meal-logs/{id}` | 단건 |
+| DELETE | `/api/v1/meal-logs/{id}?confirmed=true` | soft delete(`deleted_at`). 음성 삭제 없음 |
+
+g 규칙: 말한 g → `stated`; 단위를 말하지 않았거나 단위가 기준표 `serving_unit`(음식=`인분`)과 같으면 수량×1회 제공량 → `serving_size`(추정); 그 외(예: '공기', '개') → g/kcal `null` + `null_reason`. 기준량이 100 mL인 음식은 g이 있어도 kcal `null`.
+
+## Inventory ↔ Excel sync (iteration 2)
+| Method | Path | 설명 |
+|---|---|---|
+| POST | `/api/v1/inventory/excel-sync` | `{dry_run: true}`(기본) = 병합 계획 미리보기만. `{dry_run: false, confirmed: true}` = 외부 수정 3-way 병합 + 현재 재고 내보내기. `confirmed` 없으면 400. 미설정이면 409 `EXCEL_SYNC_DISABLED` |
+| GET | `/api/v1/inventory/excel-sync/status` | 경로, `pending_export`, `change_seq/exported_seq`, 마지막 export/결과, 잠금 파일·충돌 사본, 최근 이벤트(충돌/경고/무효 행) |
+
+`status` 값: `exported`, `merged_and_exported`, `up_to_date`, `pending_locked`, `blocked`(export_id 미상 — 파일 덮어쓰지 않음), `deferred_locked_by_excel`, `deferred_unstable`, `deferred_unreadable`, `external_changes_pending_confirmation`, `preview`.
+
+## Nutrition (iteration 2 changes)
+- 응답 행에 `verification`(`official_file_import` > `mirror_cross_checked` > `single_mirror` > `web_transcribed` > `demo_mock`), `serving_size_g`, `serving_unit`, `basis`, `source_url`, `retrieved_at`.
+- 자동 매칭은 이름/별칭 **정확 일치**만. 부분 일치는 `candidates`로만 제공.
