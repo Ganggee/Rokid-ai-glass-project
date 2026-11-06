@@ -27,7 +27,7 @@ MEALS = [
     ("snack", r"간식|야식|snack"),
 ]
 MEAL_KO = {"breakfast": "아침", "lunch": "점심", "dinner": "저녁", "snack": "간식"}
-UNITS = "공기|그릇|인분|개|접시|조각|컵|잔|봉지|봉|줄|마리|장|스푼|숟가락"
+UNITS = "공기|그릇|인분|개|접시|조각|컵|잔|봉지|봉|줄|마리|장|스푼|숟가락|병|캔|팩|알|숟갈|쪽"
 WEEKDAY = re.compile(r"[월화수목금토일]요일|주말|지난주|이번주")
 
 
@@ -78,12 +78,29 @@ def _safe_date(y, m, d) -> date | None:
         return None
 
 
+# Temporal words the parser does not resolve. If any remains after the date was parsed, the
+# parser ASKS instead of falling back to today (review P-2).
+UNRESOLVED_TEMPORAL = re.compile(
+    r"(지난|저번|이번|다음)\s*(주|달|해)?|재작년|작년|올해|금년|내년|며칠\s*(전|후)?|주말|[월화수목금토일]?요일|"
+    r"\d+\s*(주|달|개월|년)\s*(전|후|뒤)|아까|방금|last|next|week|month|ago")
+MONTH_REL = {"지난": -1, "저번": -1, "이번": 0, "다음": 1}
+YEAR_REL = {"재작년": -2, "작년": -1, "지난해": -1, "올해": 0, "금년": 0, "내년": 1}
+
+
+def _add_months(d: date, n: int) -> tuple[int, int]:
+    m = d.month - 1 + n
+    return d.year + m // 12, m % 12 + 1
+
+
 def parse_date(text: str, today: date) -> dict[str, Any]:
     """{'date': iso|None, 'status': ok|missing|ask|future|out_of_range, 'matched': str, 'relative': bool}"""
     t = text
     out = {"date": None, "status": "missing", "matched": "", "relative": False, "question": None}
 
     def done(d: date | None, matched: str, relative=False, question=None):
+        rest = t.replace(matched, " ", 1) if matched else t
+        if d is not None and UNRESOLVED_TEMPORAL.search(rest):
+            d, question = None, f"'{UNRESOLVED_TEMPORAL.search(rest).group(0)}' 날짜 표현을 이해하지 못했습니다. 날짜로 말씀해 주세요 (예: 11월 6일)"
         if d is None:
             out.update(status="ask", matched=matched, question=question or "날짜를 다시 말씀해 주세요 (예: 11월 6일)")
             return out
@@ -99,6 +116,14 @@ def parse_date(text: str, today: date) -> dict[str, Any]:
     m = re.search(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일", t) or re.search(r"(\d{4})[-./](\d{1,2})[-./](\d{1,2})", t)
     if m:
         return done(_safe_date(int(m.group(1)), int(m.group(2)), int(m.group(3))), m.group(0))
+    m = re.search(r"(재작년|작년|지난해|올해|금년|내년)\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일", t)
+    if m:
+        return done(_safe_date(today.year + YEAR_REL[m.group(1)], int(m.group(2)), int(m.group(3))), m.group(0), True)
+    m = re.search(r"(지난|저번|이번|다음)\s*달\s*(\d{1,2})\s*일", t)
+    if m:
+        y, mo = _add_months(today, MONTH_REL[m.group(1)])
+        return done(_safe_date(y, mo, int(m.group(2))), m.group(0), True,
+                    question=f"{mo}월에는 {m.group(2)}일이 없습니다. 날짜를 다시 말씀해 주세요")
     m = re.search(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일", t) or re.search(r"(?<![\d/])(\d{1,2})/(\d{1,2})(?![\d/])", t)
     if m:
         mo, d = int(m.group(1)), int(m.group(2))
@@ -108,14 +133,18 @@ def parse_date(text: str, today: date) -> dict[str, Any]:
         if cand is None or cand > today:
             cand = _safe_date(today.year - 1, mo, d)
         return done(cand, m.group(0))
+    m = re.search(r"(\d{1,2})\s*일\s*(전|前)", t)
+    if m:
+        return done(today - timedelta(days=int(m.group(1))), m.group(0), True)
     if re.search(r"엊그제", t):
         return done(None, "엊그제", question="엊그제가 며칠인지 날짜로 말씀해 주세요")
     if WEEKDAY.search(t):
         return done(None, WEEKDAY.search(t).group(0), question="요일 대신 날짜로 말씀해 주세요 (예: 11월 6일)")
-    rel = [("그저께", -2), ("그제", -2), ("어제", -1), ("오늘", 0), ("모레", 2), ("내일", 1)]
+    rel = [("그저께", -2), ("그제", -2), ("어젯밤", -1), ("어젯저녁", -1), ("어제", -1), ("오늘", 0), ("모레", 2),
+           ("내일", 1), ("yesterday", -1), ("today", 0), ("tomorrow", 1)]
     for word, delta in rel:
-        if word in t:
-            return done(today + timedelta(days=delta), word, relative=True)
+        if re.search(word, t, re.I):
+            return done(today + timedelta(days=delta), re.search(word, t, re.I).group(0), relative=True)
     m = re.search(r"(?<![\d월])(\d{1,2})\s*일(?!요일)", t)
     if m:
         d = int(m.group(1))
@@ -126,15 +155,22 @@ def parse_date(text: str, today: date) -> dict[str, Any]:
             if cand is None:
                 return done(None, m.group(0), question=f"{prev_month_last.month}월에는 {d}일이 없습니다. 날짜를 다시 말씀해 주세요")
         return done(cand, m.group(0))
+    if UNRESOLVED_TEMPORAL.search(t):
+        return done(None, "", question=f"'{UNRESOLVED_TEMPORAL.search(t).group(0)}' 날짜 표현을 이해하지 못했습니다. "
+                                       "날짜로 말씀해 주세요 (예: 11월 6일)")
     return out
 
 
-def parse_meal(text: str) -> tuple[str | None, str]:
+def parse_meal(text: str) -> tuple[str | None, str, list[str]]:
+    found = []
     for key, pat in MEALS:
         m = re.search(pat, text, re.I)
         if m:
-            return key, m.group(0)
-    return None, ""
+            found.append((m.start(), key, m.group(0)))
+    found.sort()
+    if not found:
+        return None, "", []
+    return found[0][1], found[0][2], [k for _, k, _ in found]
 
 
 def parse_intent(text: str) -> str:
@@ -147,64 +183,123 @@ def parse_intent(text: str) -> str:
         return "read"
     if re.search(r"보여|조회|로그|뭐\s*먹었|무엇을\s*먹었|show|view", t, re.I):
         return "view"
-    if re.search(r"기록|저장|먹었|먹음|먹은|추가|log|record", t, re.I):
+    if re.search(r"기록|저장|먹었|먹음|먹은|추가|\blog\b|record", t, re.I):
         return "record"
     return "unknown"
 
 
-_FILLER = re.compile(r"(기록\s*해\s*줘|기록해|기록\s*좀|기록|저장\s*해\s*줘|저장해|저장|추가\s*해\s*줘|추가해|추가|"
-                     r"먹었어요|먹었어|먹었다|먹었음|먹음|먹은\s*거|먹은|으로|로|에는|에|은|는|식사)", re.I)
+# whole tokens that carry no food name
+FILLER_TOKENS = {"기록", "기록해", "기록해줘", "기록해주세요", "기록좀", "좀", "저장", "저장해", "저장해줘", "추가", "추가해",
+                 "추가해줘", "먹었어", "먹었어요", "먹었다", "먹었음", "먹음", "먹은", "먹은거", "거", "것", "식사", "했어", "줘",
+                 "으로", "로", "에", "에는", "은", "는", "을", "를", "도", "log", "record", "ate", "had", "i", "for"}
+CONJ_SUFFIX = ("이랑", "랑", "하고")          # "A랑 B": item boundary
+SOFT_SUFFIX = ("와", "과")                      # only when the stem is a known food (사과 stays 사과)
+PARTICLES = ("에는", "으로", "에서", "에", "로", "을", "를", "은", "는", "이", "가", "도", "만")
+CORRECTION = re.compile(r"(아\s*)?아니(다|야|고|라)|말고|정정|잘못\s*말")
 
 
-def parse_foods(text: str, date_matched: str, meal_matched: str) -> list[dict[str, Any]]:
+def _strip_token(tok: str, known) -> tuple[str, bool]:
+    """Returns (token, ends_item). Particles are removed only at the END of a word and, except for the
+    unambiguous conjunctions 랑/이랑/하고, only when the remainder is a dictionary word (review P-1)."""
+    if known is not None and known(tok):
+        return tok, False
+    for suf in CONJ_SUFFIX:
+        if tok.endswith(suf) and len(tok) > len(suf):
+            stem = tok[: -len(suf)]
+            if known is None or known(stem) or not known(tok):
+                return stem, True
+    if known is None:
+        return tok, False
+    for suf in SOFT_SUFFIX:
+        if tok.endswith(suf) and len(tok) > 1 and known(tok[:-1]):
+            return tok[:-1], True
+    for suf in PARTICLES:
+        if tok.endswith(suf) and len(tok) > len(suf) and known(tok[: -len(suf)]):
+            return tok[: -len(suf)], suf in ("에", "에는")
+    return tok, False
+
+
+def _quantity(c: str) -> tuple[str, dict]:
+    item: dict[str, Any] = {"quantity": None, "unit": None, "grams": None}
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(kg|킬로그램|g|그램)(?![a-z])", c, re.I)
+    if m:
+        item["grams"] = float(m.group(1)) * (1000 if m.group(2).lower() in ("kg", "킬로그램") else 1)
+        c = (c[:m.start()] + c[m.end():]).strip()
+    m = (re.search(rf"(\d+(?:\.\d+)?|한|하나|두|둘|세|셋|네|넷|다섯|여섯|일곱|여덟|아홉|열|반)\s*({UNITS})(\s*반)?", c)
+         or re.search(r"(일|이|삼|사|오)\s*(인분)()", c))
+    if m:
+        q = m.group(1)
+        num = float(q) if re.match(r"\d", q) else NATIVE.get(q, SINO.get(q))
+        item["quantity"] = num + (0.5 if m.group(3) else 0)
+        item["unit"] = m.group(2)
+        c = (c[:m.start()] + c[m.end():]).strip()
+    else:
+        m = re.search(r"(\d+(?:\.\d+)?)\s*$", c)
+        n = re.search(r"\s(하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉|열|반)\s*$", " " + c)
+        if m and item["grams"] is None:
+            item["quantity"] = float(m.group(1))
+            c = c[:m.start()].strip()
+        elif n:
+            item["quantity"] = NATIVE[n.group(1)]
+            c = (" " + c)[:n.start()].strip()
+    return c, item
+
+
+def parse_foods(text: str, date_matched: str, meal_matched: str, known=None) -> list[dict[str, Any]]:
     t = text
     for s in (date_matched, meal_matched):
         if s:
             t = t.replace(s, " ", 1)
     t = re.sub(r"\d{4}\s*년", " ", t)
-    t = _FILLER.sub(" ", t)
-    chunks = re.split(r"\s*(?:,|，|그리고|이랑|랑|하고|및|&|\+)\s*", t)
+    t = UNRESOLVED_TEMPORAL.sub(" ", t)  # never let a date fragment become part of a food name
+    for _, pat in MEALS:  # other meal words (multiple meals are asked about separately)
+        t = re.sub(pat, " ", t, flags=re.I)
+    t = re.sub(r"(기록|저장|추가)\s*(해\s*(줘|주세요)?|좀)?", " ", t)
+    t = re.sub(r"[,，+&]", " , ", t)
+    chunks, cur = [], []
+    for tok in t.split():
+        low = tok.lower().strip(".!?~")
+        if not low:
+            continue
+        if low in (",", "그리고", "및", "또"):
+            chunks.append(cur)
+            cur = []
+            continue
+        if low in FILLER_TOKENS or re.fullmatch(r"먹(었|은|음)\S*", low):
+            continue
+        word, ends = _strip_token(tok.strip(".!?~"), known)
+        if word:
+            cur.append(word)
+        if ends:
+            chunks.append(cur)
+            cur = []
+    chunks.append(cur)
     foods = []
     for ch in chunks:
-        c = ch.strip(" .!?~")
+        c = " ".join(ch).strip()
         if not c:
             continue
-        item: dict[str, Any] = {"text": c, "quantity": None, "unit": None, "grams": None}
-        m = re.search(r"(\d+(?:\.\d+)?)\s*(g|그램|kg|킬로그램)\b", c, re.I) or re.search(r"(\d+(?:\.\d+)?)\s*(g|그램)", c, re.I)
-        if m:
-            g = float(m.group(1)) * (1000 if m.group(2).lower() in ("kg", "킬로그램") else 1)
-            item["grams"] = g
-            c = (c[:m.start()] + c[m.end():]).strip()
-        m = re.search(rf"(\d+(?:\.\d+)?|한|하나|두|둘|세|셋|네|넷|다섯|여섯|일곱|여덟|아홉|열|반)\s*({UNITS})", c)
-        if m:
-            q = m.group(1)
-            item["quantity"] = float(q) if re.match(r"\d", q) else NATIVE[q]
-            item["unit"] = m.group(2)
-            c = (c[:m.start()] + c[m.end():]).strip()
-        else:
-            m = re.search(r"(\d+(?:\.\d+)?)\s*$", c)
-            n = re.search(r"\s(하나|한|둘|두|셋|세|넷|네|다섯|여섯|일곱|여덟|아홉|열|반)\s*$", " " + c)
-            if m and item["grams"] is None:
-                item["quantity"] = float(m.group(1))
-                c = c[:m.start()].strip()
-            elif n:
-                item["quantity"] = NATIVE[n.group(1)]
-                c = (" " + c)[:n.start()].strip()
-        name = re.sub(r"(을|를|도|만)$", "", c).strip()
+        rest, item = _quantity(c)
+        name = rest.strip()
         if name:
-            item["name"] = name
+            item.update(text=c, name=name)
             foods.append(item)
     return foods
 
 
-def parse(text: str, now: datetime) -> dict[str, Any]:
+def parse(text: str, now: datetime, known=None) -> dict[str, Any]:
+    """`known(name) -> bool` is an optional dictionary (nutrition names/aliases) used for particle stripping."""
     raw = text.strip()
     norm = normalize_numerals(raw)
     today = now.date()
     intent = parse_intent(raw)
     d = parse_date(norm, today)
-    meal, meal_matched = parse_meal(norm)
+    meal, meal_matched, meals = parse_meal(norm)
     questions, warnings = [], []
+    if intent == "unknown" and (meal or d["status"] != "missing"):
+        probe = parse_foods(norm, d["matched"], meal_matched, known)
+        if probe:
+            intent = "record"  # date/meal + food without a verb (review P-3); still confirmed on the HUD
     if intent in ("record", "view", "read"):
         if d["status"] == "missing":
             if intent == "record" or meal:
@@ -216,6 +311,8 @@ def parse(text: str, now: datetime) -> dict[str, Any]:
             questions.append(d["question"])
         if d["relative"] and d["matched"] == "오늘" and now.hour < 4:
             warnings.append("late_night_today: 자정 이후입니다. 어제 기록이면 '어제'라고 말씀해 주세요")
+        if len(set(meals)) > 1:
+            questions.append("끼니를 하나만 말씀해 주세요 (아침, 점심, 저녁, 간식 중 하나)")
         if intent == "record":
             if d["status"] == "future":
                 questions.append("미래 날짜에는 기록할 수 없습니다")
@@ -223,7 +320,9 @@ def parse(text: str, now: datetime) -> dict[str, Any]:
                 questions.append("1년보다 오래된 날짜는 기록할 수 없습니다")
             if meal is None:
                 questions.append("아침, 점심, 저녁, 간식 중 어느 끼니인가요?")
-    foods = parse_foods(norm, d["matched"], meal_matched) if intent == "record" else []
+            if CORRECTION.search(norm):
+                questions.append("정정하신 내용이 있습니다. 드신 음식을 처음부터 다시 말씀해 주세요")
+    foods = parse_foods(norm, d["matched"], meal_matched, known) if intent == "record" else []
     if intent == "record" and not foods and not questions:
         questions.append("무엇을 드셨는지 말씀해 주세요 (예: 밥 한 공기, 김치찌개)")
     return {
@@ -231,5 +330,6 @@ def parse(text: str, now: datetime) -> dict[str, Any]:
         "date": d["date"], "date_status": d["status"], "date_text": d["matched"],
         "meal_type": meal, "meal_label": MEAL_KO.get(meal) if meal else None,
         "foods": foods, "questions": questions, "warnings": warnings,
+        "requires_confirmation": intent == "record" and not questions,
         "today": today.isoformat(), "resolved_at": now.isoformat(),
     }

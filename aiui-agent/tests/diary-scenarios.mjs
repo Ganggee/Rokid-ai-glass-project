@@ -66,4 +66,22 @@ export async function diaryScenarios({ check, assert, tick, openPage, makeRuntim
     const snacks = (await backend.api('/api/v1/meal-logs?date=' + y.iso + '&meal_type=snack')).items;
     assert(snacks.length === 1, 'one snack log, got ' + snacks.length);
   });
+
+  await check('DIARY: save response lost -> switch candidate -> server checked first, no 409, one log', async () => {
+    const lossy = async (url, init) => {
+      const r = await fetch(url, init);
+      if (init && init.method === 'POST' && /\/api\/v1\/meal-logs$/.test(String(url))) throw new Error('connection reset (simulated)');
+      return r;
+    };
+    const rt = makeRuntime({ fetch: lossy });
+    const p = await openPage(ws, DIARY, rt);
+    await p.call('handleText', `${y.m}월 ${y.d}일 점심 참치김밥 먹었어`);
+    assert(p.data().view === 'confirm', 'confirm view');
+    await p.call('saveLog');
+    assert(p.data().view === 'confirm', 'uncertain save stays on confirm: ' + p.data().message);
+    await p.call('switchCandidate', { index: 0 });
+    assert(p.data().view === 'view' && /기록됨|Saved/.test(p.data().message), 'detected stored log: ' + p.data().message);
+    const lunch = (await backend.api('/api/v1/meal-logs?date=' + y.iso + '&meal_type=lunch')).items;
+    assert(lunch.length === 1, 'one lunch log, got ' + lunch.length);
+  });
 }

@@ -95,7 +95,8 @@ def compute_item(conn: sqlite3.Connection, item: dict[str, Any]) -> dict[str, An
 
 
 def parse_command(conn: sqlite3.Connection, text: str, now: datetime) -> dict[str, Any]:
-    result = parse(text, now)
+    names = nutrition_lookup.known_names(conn)
+    result = parse(text, now, known=lambda n: "".join(n.lower().split()) in names)
     if result["intent"] == "record":
         result["items"] = [compute_item(conn, f) for f in result["foods"][:MAX_ITEMS]]
         result["requires_confirmation"] = not result["questions"]

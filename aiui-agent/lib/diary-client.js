@@ -14,6 +14,11 @@ export const diaryClient = {
         spoken_text: i.spoken_text || null })),
     } });
   },
+  list(date, mealType) {
+    const q = ['date=' + encodeURIComponent(date)];
+    if (mealType) q.push('meal_type=' + encodeURIComponent(mealType));
+    return request(base + '?' + q.join('&'));
+  },
   summary(date, mealType) {
     const q = [];
     if (date) q.push('date=' + encodeURIComponent(date));

@@ -107,12 +107,30 @@ export default {
   },
 
   // Cycle an unmatched item through the server's candidates (nutrition recomputed server-side on save).
-  switchCandidate(event) {
-    if (!this.pending) return;
+  // Changing an item after a save attempt with an unknown outcome: ask the server first; if the log
+  // was stored, show it; otherwise use a NEW idempotency key (the old key belongs to the old payload).
+  async switchCandidate(event) {
+    if (!this.pending || this.busy) return;
     const ds = (event && event.currentTarget && event.currentTarget.dataset) || (event && event.target && event.target.dataset) || {};
     const idx = event && typeof event.index === 'number' ? event.index : parseInt(ds.index, 10);
     const item = this.pending.items[idx];
     if (!item || !item.candidates || !item.candidates.length) return;
+    if (this.pending.attempted) {
+      const { t } = this.data;
+      this.busy = true;
+      const r = await diaryClient.list(this.pending.date, this.pending.meal_type);
+      this.busy = false;
+      if (!r.ok) { this.setData({ message: describeError(r, t) }); return; }
+      if ((r.data.items || []).some((l) => l.idempotency_key === this.pending.key)) {
+        const done = this.pending;
+        this.pending = null;
+        this.setData({ message: t.saved + ': ' + dateLabel(done.date, done.meal_type, CONFIG.UI_LANG) });
+        await this.loadSummary(done.date, null, false);
+        return;
+      }
+      this.pending.key = newIdempotencyKey('diary');
+      this.pending.attempted = false;
+    }
     const n = item.candidates.length + 1;
     this.pending.choice[idx] = (this.pending.choice[idx] + 1) % n;
     const c = this.pending.choice[idx];
@@ -135,6 +153,7 @@ export default {
     if (this.busy || !this.pending || this.data.view !== 'confirm') return;
     this.busy = true;
     this.setData({ view: 'busy', busyText: t.saving });
+    this.pending.attempted = true;
     const r = await diaryClient.save(this.pending); // same key on retry -> server applies once
     this.busy = false;
     if (!r.ok) {

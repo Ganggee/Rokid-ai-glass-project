@@ -177,6 +177,15 @@ def match(conn: sqlite3.Connection, label: str, limit: int = 5) -> dict[str, Any
     return {"exact": _row(chosen) if chosen else None, "candidates": [_row(r) for r in cands[:limit]]}
 
 
+def known_names(conn: sqlite3.Connection) -> set[str]:
+    """Normalized food names + all aliases (incl. generic ones): the parser's dictionary."""
+    out = set()
+    for r in conn.execute("SELECT food_name, aliases FROM nutrition_references").fetchall():
+        for n in _names(r):
+            out.add(_norm(n))
+    return out
+
+
 def search_local(conn: sqlite3.Connection, query: str, limit: int = 10) -> list[dict[str, Any]]:
     m = match(conn, query, limit)
     return ([m["exact"]] if m["exact"] else []) + m["candidates"][: limit - (1 if m["exact"] else 0)]

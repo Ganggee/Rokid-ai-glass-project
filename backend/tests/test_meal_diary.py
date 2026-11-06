@@ -193,3 +193,86 @@ def test_soft_delete_requires_confirmation(client):
     assert client.delete(f"/api/v1/meal-logs/{log['id']}").status_code == 400
     assert client.delete(f"/api/v1/meal-logs/{log['id']}", params={"confirmed": True}).json()["deleted"]
     assert client.get("/api/v1/meal-logs", params={"date": YDAY}).json()["items"] == []
+
+
+# ---------------------------------------------------------------- review 02 regressions (parser)
+KNOWN = {"브로콜리", "김치찌개", "밥", "쌀밥", "김치", "포도", "버섯", "갈치구이", "떡볶이", "계란", "우유", "김밥", "라면",
+         "사과", "삼겹살", "배추김치", "미역국"}
+
+
+def known(name):
+    return name.replace(" ", "") in KNOWN
+
+
+@pytest.mark.parametrize("text,names", [
+    ("어제 저녁 브로콜리랑 고로케 먹었어", ["브로콜리", "고로케"]),
+    ("오늘 간식 포도 먹었어", ["포도"]),
+    ("오늘 저녁 로제떡볶이 먹었어", ["로제떡볶이"]),
+    ("오늘 점심 은갈치구이 먹었어", ["은갈치구이"]),
+    ("오늘 점심 김치찌개에 밥 먹었어", ["김치찌개", "밥"]),
+    ("오늘 저녁 김치 먹었어", ["김치"]),
+    ("오늘 저녁 버섯 먹었어", ["버섯"]),
+    ("오늘 아침 사과를 먹었어", ["사과"]),
+    ("조식으로 쌀밥 먹었어", ["쌀밥"]),
+    ("오늘 점심 우유도 먹었어", ["우유"]),
+])
+def test_p1_particles_only_at_word_end_and_only_into_dictionary_words(text, names):
+    got = [f["name"] for f in parse(text, NOV6, known=known)["foods"]]
+    assert got == names, got
+
+
+def test_p1_without_dictionary_nothing_is_cut_inside_words():
+    got = [f["name"] for f in parse("오늘 간식 포도 먹었어", NOV6)["foods"]]
+    assert got == ["포도"]
+    got = [f["name"] for f in parse("어제 저녁 브로콜리랑 고로케 먹었어", NOV6)["foods"]]
+    assert got == ["브로콜리", "고로케"]
+
+
+@pytest.mark.parametrize("text,d,status", [
+    ("지난달 6일 아침 기록 김밥", "2026-10-06", "ok"),
+    ("저번 달 6일 아침 기록 김밥", "2026-10-06", "ok"),
+    ("이번 달 3일 아침 기록 김밥", "2026-11-03", "ok"),
+    ("다음달 3일 아침 기록 김밥", "2026-12-03", "future"),
+    ("작년 11월 6일 아침 기록 김밥", "2025-11-06", "ok"),
+    ("지난해 11월 6일 아침 기록 김밥", "2025-11-06", "ok"),
+    ("재작년 11월 6일 아침 기록 김밥", "2024-11-06", "out_of_range"),
+    ("올해 1월 2일 아침 기록 김밥", "2026-01-02", "ok"),
+    ("3일 전 점심 기록 김밥", "2026-11-03", "ok"),
+    ("어젯밤 야식 라면 먹었어", "2026-11-05", "ok"),
+    ("저번 주 점심 기록 김밥", None, "ask"),
+    ("지난주 금요일 점심 기록 김밥", None, "ask"),
+    ("지난달 아침 기록 김밥", None, "ask"),
+    ("2주 전 저녁 기록 김밥", None, "ask"),
+    ("며칠 전 저녁 기록 김밥", None, "ask"),
+])
+def test_p2_relative_month_year_or_ask_never_silent_today(text, d, status):
+    r = parse(text, NOV6, known=known)
+    assert (r["date"], r["date_status"]) == (d, status), r
+    if status == "ask":
+        assert r["questions"] and r["requires_confirmation"] is not True
+    assert all("지난" not in f["name"] and "작년" not in f["name"] for f in r["foods"])
+
+
+def test_p3_record_without_verb_when_date_meal_food_present():
+    r = parse("어제 저녁에 김치찌개랑 밥 반 공기", NOV6, known=known)
+    assert r["intent"] == "record" and [f["name"] for f in r["foods"]] == ["김치찌개", "밥"]
+    assert r["foods"][1]["quantity"] == 0.5
+
+
+def test_p4_multiple_meals_and_corrections_ask():
+    assert any("끼니" in q for q in parse("오늘 아침 점심 둘 다 김밥 먹었어", NOV6, known=known)["questions"])
+    r = parse("오늘 점심 밥 두 공기 반 먹었어", NOV6, known=known)
+    assert r["foods"][0]["quantity"] == 2.5 and r["foods"][0]["name"] == "밥"
+    assert parse("오늘 점심 김밥 먹었어 아 아니다 라면", NOV6, known=known)["questions"]
+
+
+def test_p5_english_today_yesterday():
+    r = parse("log breakfast today rice 200g", NOV6)
+    assert r["date"] == "2026-11-06" and r["meal_type"] == "breakfast" and [f["name"] for f in r["foods"]] == ["rice"]
+    assert parse("yesterday dinner show", NOV6)["date"] == "2026-11-05"
+
+
+def test_d1_stated_grams_day_speech_says_estimate(client):
+    _post(client, items=[{"food_name": "쌀밥", "grams": 210}])
+    sp = client.get("/api/v1/meal-logs/summary", params={"date": YDAY}).json()["speech_text"]
+    assert "추정" in sp and "입력값" not in sp
