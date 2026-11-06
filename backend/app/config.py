@@ -53,9 +53,9 @@ class Settings:
     food_model_plugin: str = "none"
     app_timezone: str = "Asia/Seoul"
     inventory_xlsx_path: Path | None = None
-    inventory_xlsx_poll_seconds: float = 0.0
+    inventory_xlsx_poll_seconds: float = 30.0
     inventory_xlsx_merge_policy: str = "merge_delta"
-    inventory_xlsx_auto_apply: bool = False
+    inventory_xlsx_auto_apply: bool = True
 
 
 def load_settings(env_file: Path | None = None, **overrides) -> Settings:
@@ -78,9 +78,10 @@ def load_settings(env_file: Path | None = None, **overrides) -> Settings:
         food_model_plugin=env.get("FOOD_MODEL_PLUGIN", "none").strip().lower() or "none",
         app_timezone=env.get("APP_TIMEZONE", "Asia/Seoul"),
         inventory_xlsx_path=_resolve(env["INVENTORY_XLSX_PATH"]) if env.get("INVENTORY_XLSX_PATH") else None,
-        inventory_xlsx_poll_seconds=float(env.get("INVENTORY_XLSX_POLL_SECONDS", "0") or 0),
+        # unset/empty -> 30 s; "0" only when explicitly configured (= background poller off)
+        inventory_xlsx_poll_seconds=float(env.get("INVENTORY_XLSX_POLL_SECONDS", "").strip() or 30),
         inventory_xlsx_merge_policy=env.get("INVENTORY_XLSX_MERGE_POLICY", "merge_delta"),
-        inventory_xlsx_auto_apply=_bool(env.get("INVENTORY_XLSX_AUTO_APPLY"), False),
+        inventory_xlsx_auto_apply=_bool(env.get("INVENTORY_XLSX_AUTO_APPLY"), True),
     )
     values.update(overrides)
     for key in ("database_path", "upload_dir"):
@@ -88,6 +89,8 @@ def load_settings(env_file: Path | None = None, **overrides) -> Settings:
             values[key] = _resolve(values[key])
     if isinstance(values.get("inventory_xlsx_path"), str):
         values["inventory_xlsx_path"] = _resolve(values["inventory_xlsx_path"])
+    if float(values["inventory_xlsx_poll_seconds"]) < 0:
+        raise RuntimeError("INVENTORY_XLSX_POLL_SECONDS must be >= 0 (0 = explicitly off)")
     if values["inventory_xlsx_merge_policy"] not in ("merge_delta", "db_wins", "excel_wins"):
         raise RuntimeError("INVENTORY_XLSX_MERGE_POLICY must be merge_delta | db_wins | excel_wins")
     values["nutrition_csvs"] = tuple(_resolve(p) if isinstance(p, str) else p for p in values["nutrition_csvs"])

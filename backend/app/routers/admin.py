@@ -128,3 +128,82 @@ if (token) init();
 @router.get("/admin/meals", response_class=HTMLResponse, include_in_schema=False)
 def admin_page():
     return HTMLResponse(ADMIN_HTML, headers={"Cache-Control": "no-store"})
+
+
+SYNC_HTML = r"""<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>Inventory Excel sync</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+ body{font-family:system-ui,sans-serif;margin:16px;background:#0b0f0c;color:#d7f5dc}
+ h1{font-size:18px;margin:0 0 8px} h2{font-size:15px;margin:16px 0 6px}
+ input,button{background:#101a12;color:#d7f5dc;border:1px solid #3c6b45;border-radius:4px;padding:4px 6px}
+ button{cursor:pointer} .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0}
+ table{border-collapse:collapse;font-size:13px} td,th{border:1px solid #2c4a31;padding:3px 6px;text-align:left}
+ .state{font-weight:600;padding:2px 6px;border-radius:3px} .ok{background:#2d5a36} .bad{background:#7a2b2b} .warn{background:#7a6a2b}
+ pre{white-space:pre-wrap;font-size:11px;max-height:260px;overflow:auto;background:#101a12;padding:6px}
+</style></head><body>
+<h1>Inventory ↔ Excel sync <small><a href="/admin/meals" style="color:#9fd">meals</a></small></h1>
+<div class="row">Token <input id="token" type="password" size="28"> <button onclick="saveToken()">Use</button>
+ <button onclick="refresh()">Refresh status</button> <button onclick="preview()">Preview changes</button>
+ <button id="apply" onclick="applyNow()" disabled>Apply valid rows + export</button></div>
+<div id="summary"></div>
+<h2>Plan (preview)</h2><div id="plan">Press "Preview changes".</div>
+<h2>Recent events</h2><table id="events"><thead><tr><th>time</th><th>kind</th><th>product</th><th>detail</th></tr></thead><tbody></tbody></table>
+<pre id="raw"></pre>
+<script>
+let token = sessionStorage.getItem('poc-token') || ''; document.getElementById('token').value = token;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const api = async (path, opt = {}) => {
+  const r = await fetch(path, {...opt, headers: {...(opt.headers||{}), 'Content-Type':'application/json', Authorization: 'Bearer ' + token}});
+  const body = await r.json();
+  if (!r.ok) { alert(JSON.stringify(body.error || body)); throw new Error(r.status); }
+  return body;
+};
+function saveToken(){ token = document.getElementById('token').value.trim(); sessionStorage.setItem('poc-token', token); refresh(); }
+async function refresh(){
+  const s = await api('/api/v1/inventory/excel-sync/status');
+  if (!s.enabled) { document.getElementById('summary').innerHTML = 'Disabled: ' + esc(s.reason); return; }
+  const cls = s.state.startsWith('ok') ? 'ok' : (['error','blocked','needs_review'].includes(s.state) ? 'bad' : 'warn');
+  document.getElementById('summary').innerHTML =
+    `<div class="row">State <span class="state ${cls}">${esc(s.state)}</span> pending export: <b>${s.pending_export}</b>
+     ${s.pending_reason ? '(' + esc(s.pending_reason) + ')' : ''} auto-apply: ${s.auto_apply} poll: ${s.poll_seconds}s</div>
+     <div class="row">File: ${esc(s.path)} ${s.lock_file_present ? '<b>(open in Excel)</b>' : ''}
+     ${s.conflict_copies.length ? ' conflict copies ignored: ' + esc(s.conflict_copies.join(', ')) : ''}</div>
+     ${s.last_error ? '<div class="row">Last error: ' + esc(s.last_error.at + ' ' + s.last_error.error) + '</div>' : ''}`;
+  document.querySelector('#events tbody').innerHTML = s.recent_events.map(e =>
+    `<tr><td>${esc(e.created_at.slice(0,19))}</td><td>${esc(e.kind)}</td><td>${esc(e.product_id)}</td><td>${esc(e.detail)}</td></tr>`).join('');
+  document.getElementById('raw').textContent = JSON.stringify(s.last_result, null, 1);
+}
+function table(title, rows, cols){
+  if (!rows || !rows.length) return '';
+  return `<h3>${title} (${rows.length})</h3><table><tr>${cols.map(c=>'<th>'+c+'</th>').join('')}</tr>` +
+    rows.map(r => '<tr>' + cols.map(c => '<td>' + esc(typeof r[c] === 'object' ? JSON.stringify(r[c]) : r[c]) + '</td>').join('') + '</tr>').join('') + '</table>';
+}
+async function preview(){
+  const r = await api('/api/v1/inventory/excel-sync', {method:'POST', body: JSON.stringify({dry_run: true})});
+  const p = r.plan;
+  document.getElementById('apply').disabled = !p || !!p.blocked;
+  if (!p) { document.getElementById('plan').innerHTML = 'No external change to apply. Apply will export pending changes.'; document.getElementById('apply').disabled = false; return; }
+  document.getElementById('plan').innerHTML = (p.blocked ? '<p class="state bad">BLOCKED: ' + esc(p.blocked) + '</p>' : '') +
+    `<p>safe for auto-apply: <b>${r.safe_for_auto_apply}</b></p>` +
+    table('Invalid rows (not applied)', p.invalid, ['row','product_id','message']) +
+    table('Conflicts (DB kept unless stated)', p.conflicts, ['product_id','kind','base','db','excel','action']) +
+    table('Stock changes', p.stock_changes, ['product_id','from','to','kind']) +
+    table('Merged (both sides kept)', p.merges, ['product_id','base','db','excel','action']) +
+    table('Metadata changes', p.meta_changes, ['product_id','fields']) +
+    table('New products', p.creates, ['product_id','product_name','stock_qty']) +
+    table('Warnings', p.warnings, ['product_id','kind']);
+}
+async function applyNow(){
+  if (!confirm('Apply the valid rows to the database and export the current stock to Excel?')) return;
+  const r = await api('/api/v1/inventory/excel-sync', {method:'POST', body: JSON.stringify({dry_run: false, confirmed: true})});
+  alert('Result: ' + r.status + (r.plan && r.plan.invalid.length ? ' (' + r.plan.invalid.length + ' row(s) rejected)' : ''));
+  document.getElementById('apply').disabled = true; refresh(); document.getElementById('plan').innerHTML = '';
+}
+if (token) refresh();
+</script></body></html>"""
+
+
+@router.get("/admin/inventory-sync", response_class=HTMLResponse, include_in_schema=False)
+def inventory_sync_page():
+    return HTMLResponse(SYNC_HTML, headers={"Cache-Control": "no-store"})

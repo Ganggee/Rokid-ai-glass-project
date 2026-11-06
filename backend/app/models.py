@@ -188,15 +188,21 @@ CREATE TABLE IF NOT EXISTS excel_sync_state (
 INSERT OR IGNORE INTO excel_sync_state(key, value) VALUES ('change_seq', '0');
 INSERT OR IGNORE INTO excel_sync_state(key, value) VALUES ('exported_seq', '0');
 
--- Every export writes one row; the snapshot is the merge BASELINE for files carrying this export_id.
+-- One row per SUCCESSFUL export (a 'writing' row exists only between temp-file write and replace).
+-- The snapshot (deduplicated by content hash) is the merge BASELINE for files carrying this export_id.
+-- Retention: newest KEEP_EXPORTS (50) + the export_id currently written in the file.
+CREATE TABLE IF NOT EXISTS excel_snapshots (
+    sha           TEXT PRIMARY KEY,
+    snapshot_json TEXT NOT NULL,
+    created_at    TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS excel_exports (
     export_id     TEXT PRIMARY KEY,
     path          TEXT NOT NULL,
     change_seq    INTEGER NOT NULL,
-    snapshot_json TEXT NOT NULL,
+    snapshot_sha  TEXT NOT NULL REFERENCES excel_snapshots(sha),
     sha256        TEXT,
-    status        TEXT NOT NULL CHECK (status IN ('written', 'failed')),
-    error         TEXT,
+    status        TEXT NOT NULL CHECK (status IN ('writing', 'written')),
     created_at    TEXT NOT NULL
 );
 

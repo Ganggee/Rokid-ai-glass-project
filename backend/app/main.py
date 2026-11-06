@@ -36,7 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             c = connect(settings.database_path)
             try:  # export changes left pending by a crash / merge edits made while the server was down
                 excel_sync.sync_once(c, settings.inventory_xlsx_path, apply=settings.inventory_xlsx_auto_apply,
-                                     policy=settings.inventory_xlsx_merge_policy)
+                                     policy=settings.inventory_xlsx_merge_policy, auto=True)
             except Exception:
                 log.exception("initial Excel sync failed")
             finally:

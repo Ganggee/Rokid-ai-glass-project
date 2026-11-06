@@ -2,11 +2,14 @@
 
     python scripts/soak_inventory_excel.py --seed 2026 --uses 2000 --edits 60 --restarts 6
 
-Random stock uses, simulated human edits of the workbook, simulated locked-file export failures and
+Random stock uses, simulated human edits of several kinds (stock change, new row, product_id typo with a
+copied barcode, deleted row, invalid value), safe auto-apply like the poller with manual applies for
+rows that need review, simulated locked-file export failures and
 connection restarts (in-process: the SQLite connection and sync state are recreated; the OS process is
 not restarted — server-restart recovery is covered by tests). At the end it asserts:
   stock == sum of transaction deltas for every product, never negative, Excel == DB after sync,
-  no idempotency key applied twice, no Excel file content applied twice.
+  no idempotency key applied twice, no Excel file content applied twice, no typo product created,
+  sync tables stay under fixed row limits (KEEP_EXPORTS / KEEP_EVENTS).
 """
 from __future__ import annotations
 
@@ -45,6 +48,7 @@ def main(argv=None) -> int:
         stats["excel_imports"] = conn.execute("SELECT COUNT(*) FROM excel_imports").fetchone()[0]
         stats["exports_written"] = conn.execute("SELECT COUNT(*) FROM excel_exports WHERE status='written'").fetchone()[0]
         stats["conflicts_logged"] = conn.execute("SELECT COUNT(*) FROM excel_sync_events WHERE kind='conflict'").fetchone()[0]
+        stats["db_bytes"] = db.stat().st_size
         stats["result"] = "PASS (all invariants held)"
         conn.close()
     print(json.dumps({"seed": a.seed, **stats}, ensure_ascii=False))
