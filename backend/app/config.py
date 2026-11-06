@@ -43,7 +43,8 @@ class Settings:
     upload_dir: Path
     max_upload_bytes: int = 15 * 1024 * 1024
     meal_retention_days: int = 14
-    nutrition_csv: Path = field(default_factory=lambda: REPO_ROOT / "sample-data" / "nutrition_demo.csv")
+    nutrition_csvs: tuple = field(default_factory=lambda: (REPO_ROOT / "sample-data" / "nutrition_reference_public.csv",
+                                                           REPO_ROOT / "sample-data" / "nutrition_demo.csv"))
     mfds_api_key: str = ""
     mfds_base_url: str = "https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03"
     mfds_operation: str = "getFoodNtrCpntDbInq03"
@@ -62,7 +63,8 @@ def load_settings(env_file: Path | None = None, **overrides) -> Settings:
         upload_dir=_resolve(env.get("UPLOAD_DIR", "uploads")),
         max_upload_bytes=int(float(env.get("MAX_UPLOAD_MB", "15")) * 1024 * 1024),
         meal_retention_days=int(env.get("MEAL_RETENTION_DAYS", "14")),
-        nutrition_csv=_resolve(env.get("NUTRITION_CSV", "sample-data/nutrition_demo.csv")),
+        nutrition_csvs=tuple(_resolve(p.strip()) for p in env.get(
+            "NUTRITION_CSV", "sample-data/nutrition_reference_public.csv,sample-data/nutrition_demo.csv").split(",") if p.strip()),
         mfds_api_key=env.get("MFDS_API_KEY", ""),
         mfds_base_url=env.get("MFDS_BASE_URL", "https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03"),
         mfds_operation=env.get("MFDS_OPERATION", "getFoodNtrCpntDbInq03"),
@@ -71,9 +73,10 @@ def load_settings(env_file: Path | None = None, **overrides) -> Settings:
         food_model_plugin=env.get("FOOD_MODEL_PLUGIN", "none").strip().lower() or "none",
     )
     values.update(overrides)
-    for key in ("database_path", "upload_dir", "nutrition_csv"):
+    for key in ("database_path", "upload_dir"):
         if isinstance(values[key], str):
             values[key] = _resolve(values[key])
+    values["nutrition_csvs"] = tuple(_resolve(p) if isinstance(p, str) else p for p in values["nutrition_csvs"])
     settings = Settings(**values)
     if not settings.api_token:
         raise RuntimeError(

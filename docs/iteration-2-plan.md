@@ -1,0 +1,54 @@
+# Iteration 2 plan (draft v1, 2026-11-06) — for advisor review
+
+Repository: `/home/claude/rokid-ai-glasses-dual-poc`, branch `feature/iteration-2`. GitHub: `Ganggee/Rokid-ai-glass-project` (main = iteration 1).
+
+## User requests (verbatim intent)
+1. `nutrition_demo.csv` has very few foods → enrich from **publicly available data**, not vague "use open source".
+2. **Voice meal diary**: say year/date/meal ("2026년 11월 6일 아침 기록") → eaten foods + kcal + nutrients are recorded;
+   say a date to **view** the log or **hear it read aloud**.
+3. Inventory: load from **Excel in a linked storage** and **save back to Excel when stock changes**; goal = sustained, continuous use.
+4. Work as a team: coder / reviewer-discussant / advisor professor, iterate until it holds.
+
+## Environment facts (verified)
+- Shell outbound: only GitHub git + allowlisted proxy. PyPI/npm blocked (403). data.go.kr / foodsafetykorea / USDA not reachable from shell.
+  `WebFetch`/`WebSearch` tools can read public web pages (agent-side), not bulk file downloads.
+- FastAPI for tests is vendored from GitHub source into the sandbox only (see docs/poc-results.md). CI on GitHub installs from PyPI and passes.
+- Official AIUI docs: `/tmp/aiui-src/jsar/skills/aiui-dev/references` (apis/ai.md has `SpeechRecognition`, `speechSynthesis.speak(new SpeechSynthesisUtterance(text), 'enqueue'|'immediate')`).
+  Official validator/loader: `/tmp/aiui-src/jsar/bench/src`.
+- MFDS 식품영양성분DB OpenAPI (data.go.kr 15127578): license "이용허락범위 제한 없음", endpoint `https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03`, key required, response field names not confirmed.
+  전국통합식품영양성분정보 표준데이터 (data.go.kr 15100064) columns: 식품코드, 식품명, 데이터구분명, 영양성분함량기준량, 에너지(kcal), 수분(g), 단백질(g), 지방(g), 회분(g), 탄수화물(g), 당류(g), 식이섬유(g), …, 나트륨(mg), …, 출처명, 식품중량, ….
+
+## A. Nutrition reference expansion
+- Additive schema migration (existing DBs keep data): `nutrition_references` + `serving_size_g`, `category`, `food_code`, `sugars_g_per_100g`, `sodium_mg_per_100g`, `source_url`, `retrieved_at`, `verification` (`fetched_from_source` | `official_file_import` | `demo_mock`).
+- `sample-data/nutrition_reference_public.csv`: common Korean dishes/ingredients (target 60–150 rows) **only with values read from a fetched public source page**, each row with `source_url` + `retrieved_at`. No value from memory. If a source cannot be fetched, the row is not added.
+- `scripts/import_nutrition_mfds.py`: (1) import the official standard-data file (CSV/XLSX downloaded by the user) with header mapping and per-100 g normalisation; (2) `--api` paginated fetch with `MFDS_API_KEY`. Tested with a fixture that mimics the official header (fixture values clearly synthetic).
+- DEMO rows stay but are ranked after public rows in label matching; `is_demo` semantics unchanged.
+
+### A-1. Data acquisition route found by PM (2026-11-06)
+Official sites are not reachable from this sandbox (shell blocked; WebFetch allowlist rejects data.go.kr file pages, nongsaro robots-disallowed, USDA API not allowlisted).
+`git clone` of GitHub works. Public GitHub repos that redistribute the MFDS 전국통합식품영양성분정보 표준데이터 (음식) exist, e.g.:
+- `toadsam/Ajou_MuscleUp` (PR #18: `backend/src/main/resources/food/foods.tsv.gz`, K-FIND 음식 15,647 + 가공식품, RDA 10.4 원재료)
+- `kangsogo7/meal-log` (`public/food-db.json`, built from 표준데이터 원재료성·음식·가공식품)
+- `minseok08262-web/carb-loading-tracker` (`tools/fetch_food.py`, 표준데이터 원재료성식품·음식, ~8천 종)
+- `sirloinbh/health-log` (PR #66: 95 popular foods with source URLs)
+Route: shallow/sparse clone ≥2 independent mirrors → extract 음식 rows by 식품코드 → **cross-check the same 식품코드 across mirrors** (values must agree) → bundle a curated subset of common Korean dishes/ingredients with provenance (`source = MFDS_STD_DATA`, `source_detail = mirror repo@commit`, `verification = mirror_cross_checked | single_mirror`). Rows that disagree are excluded and reported.
+License: data.go.kr lists 이용허락범위 제한 없음 / KOGL Type 1 (attribution) → attribution in LICENSE-THIRD-PARTY.md. Mirror repos' code is not copied.
+The official importer (`scripts/import_nutrition_mfds.py`) remains the primary path for a full, first-hand refresh on the user's PC.
+
+## B. Voice meal diary
+- Tables `meal_logs` (date, meal_type breakfast|lunch|dinner|snack, source voice|analysis|manual, meal_session_id?, idempotency_key UNIQUE) and `meal_log_items` (food_name, nutrition_ref_id, grams, grams_basis stated|serving_size|analysis|unknown, kcal/carbs/protein/fat nullable).
+- Korean parser (server, no LLM): absolute dates (2026년 11월 6일, 11월 6일, 11/6), relative (오늘/어제/그제/그저께), meal words (아침/아침식사/조식, 점심/중식, 저녁/석식, 간식/야식), intents record / view / read-aloud, foods with quantities (밥 한 공기, 계란 2개, 200g). `APP_TIMEZONE=Asia/Seoul` for relative dates.
+- Grams: stated grams → use; count × serving_size_g when the reference has a serving size → `grams_basis=serving_size`; otherwise grams/kcal null (no invented numbers).
+- Confirmation before write (same pattern as inventory), idempotent POST.
+- API: `POST /api/v1/meal-logs/parse-command`, `POST /api/v1/meal-logs`, `GET /api/v1/meal-logs?date=&meal_type=`, `GET /api/v1/meal-logs/summary?date=` (daily totals + `speech_text` for TTS), `DELETE /api/v1/meal-logs/{id}`, `POST /api/v1/meal-logs/from-session/{session_id}` (log an analysed meal).
+- AIUI: new `pages/diary/diary.ink` (voice → parse → confirm → save; date view; "읽어줘" → `speechSynthesis.speak`), Home 3rd button, meal result page "기록" button. Harness scenarios with SpeechRecognition + speechSynthesis mocks.
+
+## C. Inventory ↔ Excel sync
+- SQLite stays the source of truth (LOCAL mode on the glasses keeps JSON in wx storage and cannot reach Excel — documented).
+- "Linked storage" assumption: a folder synced by OneDrive / Google Drive / SharePoint desktop client on the server PC → `INVENTORY_XLSX_PATH`. Direct Graph/Drive API (OAuth) = documented next step, not built.
+- Export after every stock change: atomic temp-file + `os.replace`; sheets `inventory` (same columns as the import format → round-trip), `transactions` (recent), `_sync` (baseline per product + export sha). File locked (Excel open on Windows) → export marked pending, retried; `/use` never fails because of Excel.
+- Import/watch: poller (`INVENTORY_XLSX_POLL_SECONDS`) + `POST /api/v1/inventory/excel-sync` + `GET …/excel-sync/status`. Three-way merge per product with baseline: excel-only change → `adjust` tx (source excel_sync); db-only change → export; both → `merge_delta` (db + (excel − base)), logged as conflict; configurable `db_wins|excel_wins|merge_delta`. New rows → create; deleted rows → never delete, warn. Invalid rows → not applied, reported.
+- Soak test for "continuous use": many random uses + periodic external Excel edits + restarts → invariants (stock = Σ deltas, never negative, Excel == DB after sync, no duplicate application).
+
+## Quality bar
+All iteration-1 tests stay green; new unit/API tests per feature; AIUI validator 0 issues; harness extended; docs (api, capability matrix, test plan, results with honest levels) updated; CI green on GitHub.

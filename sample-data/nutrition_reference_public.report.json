@@ -1,0 +1,359 @@
+{
+  "curated": 175,
+  "missing_in_primary": [
+    "볶음밥_새우볶음밥"
+  ],
+  "excluded_disagreement": [
+    {
+      "name": "순두부찌개_해물",
+      "present_in": [
+        "kangsogo7"
+      ]
+    },
+    {
+      "name": "동태찌개",
+      "present_in": [
+        "carb",
+        "kangsogo7"
+      ]
+    },
+    {
+      "name": "군만두",
+      "present_in": [
+        "carb",
+        "kangsogo7",
+        "healthlog"
+      ]
+    },
+    {
+      "name": "김말이튀김",
+      "present_in": [
+        "carb",
+        "kangsogo7"
+      ]
+    },
+    {
+      "name": "핫도그",
+      "present_in": [
+        "carb",
+        "kangsogo7",
+        "healthlog"
+      ]
+    },
+    {
+      "name": "달걀후라이",
+      "present_in": [
+        "carb",
+        "kangsogo7"
+      ]
+    },
+    {
+      "name": "감자조림",
+      "present_in": [
+        "carb",
+        "kangsogo7"
+      ]
+    },
+    {
+      "name": "두부조림",
+      "present_in": [
+        "carb",
+        "kangsogo7",
+        "healthlog"
+      ]
+    },
+    {
+      "name": "완자전_소고기(동그랑땡/육원전)",
+      "present_in": [
+        "kangsogo7"
+      ]
+    }
+  ],
+  "cross_checked": 142,
+  "single_mirror": 23,
+  "basis_not_100g": [
+    {
+      "name": "흑미밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "현미밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "잡곡밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "보리밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "검정콩밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "비빔밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "돌솥비빔밥_양념장",
+      "basis": "100ml"
+    },
+    {
+      "name": "짜장밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "참치덮밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "주먹밥",
+      "basis": "100ml"
+    },
+    {
+      "name": "흰죽",
+      "basis": "100ml"
+    },
+    {
+      "name": "전복죽",
+      "basis": "100ml"
+    },
+    {
+      "name": "호박죽",
+      "basis": "100ml"
+    },
+    {
+      "name": "팥죽",
+      "basis": "100ml"
+    },
+    {
+      "name": "미역국",
+      "basis": "100ml"
+    },
+    {
+      "name": "미역 된장국",
+      "basis": "100ml"
+    },
+    {
+      "name": "콩나물국",
+      "basis": "100ml"
+    },
+    {
+      "name": "콩나물 황태국",
+      "basis": "100ml"
+    },
+    {
+      "name": "두부국",
+      "basis": "100ml"
+    },
+    {
+      "name": "어묵국",
+      "basis": "100ml"
+    },
+    {
+      "name": "삼계탕",
+      "basis": "100ml"
+    },
+    {
+      "name": "순대국",
+      "basis": "100ml"
+    },
+    {
+      "name": "뼈다귀해장국",
+      "basis": "100ml"
+    },
+    {
+      "name": "연두부찌개",
+      "basis": "100ml"
+    },
+    {
+      "name": "라면",
+      "basis": "100ml"
+    },
+    {
+      "name": "짜장면",
+      "basis": "100ml"
+    },
+    {
+      "name": "짬뽕",
+      "basis": "100ml"
+    },
+    {
+      "name": "잔치국수",
+      "basis": "100ml"
+    },
+    {
+      "name": "비빔국수",
+      "basis": "100ml"
+    },
+    {
+      "name": "물냉면",
+      "basis": "100ml"
+    },
+    {
+      "name": "비빔냉면",
+      "basis": "100ml"
+    },
+    {
+      "name": "우동",
+      "basis": "100ml"
+    },
+    {
+      "name": "스파게티",
+      "basis": "100ml"
+    },
+    {
+      "name": "피자",
+      "basis": "100ml"
+    },
+    {
+      "name": "돼지불고기_간장",
+      "basis": "100ml"
+    },
+    {
+      "name": "제육볶음",
+      "basis": "100ml"
+    },
+    {
+      "name": "닭볶음(닭갈비)",
+      "basis": "100ml"
+    },
+    {
+      "name": "소갈비찜",
+      "basis": "100ml"
+    },
+    {
+      "name": "수육_소고기",
+      "basis": "100ml"
+    },
+    {
+      "name": "제육(돼지고기 수육)",
+      "basis": "100ml"
+    },
+    {
+      "name": "탕수육",
+      "basis": "100ml"
+    },
+    {
+      "name": "메추리알장조림",
+      "basis": "100ml"
+    },
+    {
+      "name": "고등어구이",
+      "basis": "100ml"
+    },
+    {
+      "name": "갈치구이",
+      "basis": "100ml"
+    },
+    {
+      "name": "삼치구이",
+      "basis": "100ml"
+    },
+    {
+      "name": "꽁치구이",
+      "basis": "100ml"
+    },
+    {
+      "name": "낙지볶음",
+      "basis": "100ml"
+    },
+    {
+      "name": "새우튀김",
+      "basis": "100ml"
+    },
+    {
+      "name": "달걀찜",
+      "basis": "100ml"
+    },
+    {
+      "name": "두부 달걀탕",
+      "basis": "100ml"
+    },
+    {
+      "name": "고사리나물",
+      "basis": "100ml"
+    },
+    {
+      "name": "도라지나물",
+      "basis": "100ml"
+    },
+    {
+      "name": "숙주나물",
+      "basis": "100ml"
+    },
+    {
+      "name": "멸치볶음",
+      "basis": "100ml"
+    },
+    {
+      "name": "어묵볶음",
+      "basis": "100ml"
+    },
+    {
+      "name": "연근조림",
+      "basis": "100ml"
+    },
+    {
+      "name": "감자전",
+      "basis": "100ml"
+    },
+    {
+      "name": "김치전",
+      "basis": "100ml"
+    },
+    {
+      "name": "해물파전",
+      "basis": "100ml"
+    },
+    {
+      "name": "녹두전",
+      "basis": "100ml"
+    },
+    {
+      "name": "동태전",
+      "basis": "100ml"
+    },
+    {
+      "name": "감자샐러드",
+      "basis": "100ml"
+    },
+    {
+      "name": "과일샐러드",
+      "basis": "100ml"
+    },
+    {
+      "name": "카페라떼",
+      "basis": "100ml"
+    },
+    {
+      "name": "옥수수구이",
+      "basis": "100ml"
+    }
+  ],
+  "mirrors": {
+    "toadsam": {
+      "repo": "toadsam/Ajou_MuscleUp",
+      "commit": "6c3623143ce37ea7fac93ebaaec25e4722a812ce",
+      "file": "backend/src/main/resources/food/foods.tsv.gz"
+    },
+    "carb": {
+      "repo": "minseok08262-web/carb-loading-tracker",
+      "commit": "152a0a41870859630f2b46a9c270a29187e75040",
+      "file": "data/foods-db.json"
+    },
+    "kangsogo7": {
+      "repo": "kangsogo7/meal-log",
+      "commit": "a51bb95dfdc5f1a03caa14ccf35f40e51891cdaf",
+      "file": "public/food-db.json"
+    },
+    "healthlog": {
+      "repo": "sirloinbh/health-log",
+      "commit": "3b78a6de69e41dc6b491d08cb1238baec1a52ad8",
+      "file": "database/migrations/005_foods_popular.sql"
+    }
+  },
+  "bundled_rows": 165
+}

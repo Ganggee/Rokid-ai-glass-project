@@ -34,7 +34,8 @@ def test_full_pipeline_auto_regions_and_nutrition(meal):
     up = _upload(client, sid, "before", b).json()
     assert up["status"] == "before_captured"
     assert len(up["detected_regions"]) >= 2  # colourful foods found; white rice may be missed (documented)
-    assert {o["id"] for o in up["label_options"]} >= {"DEMO-RICE", "DEMO-KIMCHI"}
+    names = [o["food_name"] for o in up["label_options"]]
+    assert names[0] == "쌀밥" and "배추김치" in names and len(names) <= 20
     assert _upload(client, sid, "after", a).json()["status"] == "after_captured"
     items = [
         {"label": "밥", "nutrition_ref_id": "DEMO-RICE", "initial_serving_grams": 200, "serving_source": "demo_assumption",
@@ -60,7 +61,8 @@ def test_full_pipeline_auto_regions_and_nutrition(meal):
     assert rice["kcal"] == pytest.approx(150 * rice["estimated_consumed_grams"] / 100, abs=0.2)
     assert rice["source"] == "DEMO_MOCK" and rice["is_demo"]
     assert foods["김치"]["estimated_consumed_grams"] is None and foods["김치"]["kcal"] is None
-    assert foods["계란"]["source"] == "DEMO_MOCK"  # matched by label name
+    # exact alias match now prefers the cross-checked public MFDS row over the DEMO row
+    assert foods["계란"]["source"] == "MFDS_STD_DATA" and foods["계란"]["is_demo"] is False
     assert res["totals_complete"] is False
     # results endpoint returns the stored analysis; session status updated
     assert client.get(f"/api/v1/meals/{sid}/results").json()["analysis_id"] == res["analysis_id"]
@@ -141,7 +143,9 @@ def test_results_before_analysis_404(meal):
 
 def test_nutrition_search_and_admin_page(client):
     hits = client.get("/api/v1/nutrition/search", params={"q": "쌀밥"}).json()["items"]
-    assert hits[0]["id"] == "DEMO-RICE" and hits[0]["is_demo"] is True
+    assert hits[0]["food_name"] == "쌀밥" and hits[0]["verification"] == "mirror_cross_checked" and hits[0]["is_demo"] is False
+    # DEMO row still reachable, ranked after public rows
+    assert any(h["id"] == "DEMO-RICE" for h in client.get("/api/v1/nutrition/search", params={"q": "밥"}).json()["items"])
     remote = client.get("/api/v1/nutrition/search", params={"q": "밥", "remote": True}).json()["remote"]
     assert remote["status"] == "disabled"
     page = client.get("/admin/meals")

@@ -28,6 +28,7 @@ def seed(db_path: Path) -> None:
     csv_path = ROOT / "sample-data" / "inventory_demo.csv"
     preview = inv.preview_import(conn, csv_path.name, csv_path.read_bytes())
     inv.commit_import(conn, preview["batch_id"], "seed", is_demo=True)
+    nutrition_lookup.load_csv(conn, ROOT / "sample-data" / "nutrition_reference_public.csv")
     nutrition_lookup.load_csv(conn, ROOT / "sample-data" / "nutrition_demo.csv")
     conn.close()
 

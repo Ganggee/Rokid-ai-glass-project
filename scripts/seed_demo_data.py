@@ -34,11 +34,11 @@ def main(argv=None) -> int:
     csv_path = REPO_ROOT / "sample-data" / "inventory_demo.csv"
     preview = inv.preview_import(conn, csv_path.name, csv_path.read_bytes())
     report = inv.commit_import(conn, preview["batch_id"], "seed", source="seed_demo", is_demo=True)
-    n = nutrition_lookup.load_csv(conn, settings.nutrition_csv)
+    n = sum(nutrition_lookup.load_csv(conn, p_) for p_ in settings.nutrition_csvs if p_.is_file())
     print(f"Inventory seed: {report['counts']}")
     for p_ in inv.search_products(conn):
         print(f"  {p_['product_id']:<28} {p_['stock_qty']:>4} {p_['unit']}  (DEMO={p_['is_demo']})")
-    print(f"Nutrition references loaded: {n} from {settings.nutrition_csv.name}")
+    print(f"Nutrition references loaded: {n} from {', '.join(p_.name for p_ in settings.nutrition_csvs)}")
     print(f"Database: {settings.database_path}")
     return 0
 

@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from .models import SCHEMA, SCHEMA_VERSION
+from .models import MIGRATION_COLUMNS, SCHEMA, SCHEMA_VERSION
 
 
 def utcnow() -> str:
@@ -32,8 +32,21 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
+def migrate(conn: sqlite3.Connection) -> list[str]:
+    """Add columns introduced after v1. Idempotent: checks PRAGMA table_info first."""
+    added = []
+    for table, cols in MIGRATION_COLUMNS.items():
+        existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        for name, decl in cols:
+            if name not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+                added.append(f"{table}.{name}")
+    return added
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    migrate(conn)
     conn.execute(
         "INSERT INTO schema_meta(key, value) VALUES('schema_version', ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",

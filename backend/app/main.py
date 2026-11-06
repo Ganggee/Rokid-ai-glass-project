@@ -39,7 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         init_db(conn)
         from .services.nutrition_lookup import ensure_seeded
 
-        ensure_seeded(conn, settings.nutrition_csv)
+        ensure_seeded(conn, settings.nutrition_csvs)
     finally:
         conn.close()
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
