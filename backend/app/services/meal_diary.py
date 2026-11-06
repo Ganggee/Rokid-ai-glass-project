@@ -282,6 +282,7 @@ def summary(conn, log_date: str, meal_type: str | None = None) -> dict[str, Any]
 
         lines = [f"{lg['meal_label']}: " + ", ".join(
             f"{i['food_name']} {amount(i)}{('약 %dkcal(추정)' % round(i['kcal'])) if i['kcal'] is not None else '열량 미상'}"
+            f"{' [DEMO]' if i.get('ref_is_demo') else ''}"
             for i in lg["items"]) for lg in logs]
     return {"date": log_date, "meal_type": meal_type, "logs": logs, "totals": totals, "totals_complete": complete,
             "has_demo": has_demo, "is_estimate": is_estimate, "speech_text": speech, "display_lines": lines,

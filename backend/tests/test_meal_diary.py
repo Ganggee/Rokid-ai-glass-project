@@ -276,3 +276,59 @@ def test_d1_stated_grams_day_speech_says_estimate(client):
     _post(client, items=[{"food_name": "쌀밥", "grams": 210}])
     sp = client.get("/api/v1/meal-logs/summary", params={"date": YDAY}).json()["speech_text"]
     assert "추정" in sp and "입력값" not in sp
+
+
+# ---------------------------------------------------------------- review 04 regressions (round 2)
+R2_NAMES = ["떡볶이", "라볶이", "삼겹살구이", "갈치구이", "꽁치구이", "조기구이", "옥수수구이", "오이소박이"]
+
+
+def _known_from_db(conn):
+    names = nutrition_lookup.known_names(conn)
+    return lambda n: "".join(n.lower().split()) in names
+
+
+@pytest.mark.parametrize("name", R2_NAMES)
+@pytest.mark.parametrize("joiner", ["랑", "하고", ""])
+def test_r2_food_names_ending_in_i_survive_conjunctions(name, joiner):
+    kn = lambda n: n.replace(" ", "") in set(R2_NAMES) | {"김밥"}  # noqa: E731
+    text = f"오늘 점심 {name}{joiner} 김밥 먹었어" if joiner else f"오늘 점심 {name}, 김밥 먹었어"
+    got = [f["name"] for f in parse(text, NOV6, known=kn)["foods"]]
+    assert got == [name, "김밥"], got
+
+
+def test_r2_every_bundled_name_round_trips_through_conjunctions(conn):
+    kn = _known_from_db(conn)
+    bad = []
+    for r in nutrition_lookup.list_references(conn):
+        if r["is_demo"] or " " in r["food_name"] or "(" in r["food_name"]:
+            continue
+        for j in ("랑", "이랑", "하고"):
+            if j == "이랑" and r["food_name"][-1] in "아야어여오요우유으이에애":
+                continue  # 이랑 follows a consonant; vowel-final names take 랑
+            got = [f["name"] for f in parse(f"오늘 점심 {r['food_name']}{j} 김밥 먹었어", NOV6, known=kn)["foods"]]
+            if got[:1] != [r["food_name"]]:
+                bad.append((r["food_name"], j, got))
+    assert not bad, bad[:10]
+
+
+@pytest.mark.parametrize("text", ["아까 점심 김밥 먹었어", "방금 간식 바나나 먹었어", "조금 전 간식 사과 먹었어", "좀 전에 간식 우유 먹었어"])
+def test_r3_just_now_words_mean_today(text):
+    r = parse(text, NOV6, known=known)
+    assert r["date"] == "2026-11-06" and r["date_status"] == "ok" and not r["questions"], r["questions"]
+
+
+@pytest.mark.parametrize("text,names", [
+    ("오늘 간식 우유 한 잔 마셨어", ["우유"]),
+    ("오늘 점심 회사에서 김밥 먹었어", ["김밥"]),
+    ("어제 점심은 김밥이었어", ["김밥"]),
+    ("오늘 저녁 라면였어", ["라면"]),
+])
+def test_r6_drink_verbs_place_words_and_copula(text, names):
+    got = [f["name"] for f in parse(text, NOV6, known=known)["foods"]]
+    assert got == names, got
+
+
+def test_r6_night_asks_dinner_or_snack_and_is_not_a_food():
+    r = parse("어제 밤에 라면 먹었어", NOV6, known=known)
+    assert [f["name"] for f in r["foods"]] == ["라면"]
+    assert any("저녁" in q and "간식" in q for q in r["questions"])

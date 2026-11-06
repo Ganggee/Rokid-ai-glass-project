@@ -62,7 +62,8 @@ def test_full_pipeline_auto_regions_and_nutrition(meal):
     assert rice["source"] == "DEMO_MOCK" and rice["is_demo"]
     assert foods["김치"]["estimated_consumed_grams"] is None and foods["김치"]["kcal"] is None
     # '계란' is a generic word: it matches the DEMO row by name (flagged), the raw-egg MFDS row is only a candidate
-    assert foods["계란"]["source"] == "DEMO_MOCK" and foods["계란"]["is_demo"] is True
+    # review R-4 / advisor §6: '계란' has public candidates (달걀(생것) ...), so the DEMO row is NOT auto-confirmed
+    assert foods["계란"]["source"] is None and foods["계란"]["kcal"] is None
     assert res["totals_complete"] is False
     # results endpoint returns the stored analysis; session status updated
     assert client.get(f"/api/v1/meals/{sid}/results").json()["analysis_id"] == res["analysis_id"]

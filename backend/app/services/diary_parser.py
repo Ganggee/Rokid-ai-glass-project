@@ -82,7 +82,7 @@ def _safe_date(y, m, d) -> date | None:
 # parser ASKS instead of falling back to today (review P-2).
 UNRESOLVED_TEMPORAL = re.compile(
     r"(지난|저번|이번|다음)\s*(주|달|해)?|재작년|작년|올해|금년|내년|며칠\s*(전|후)?|주말|[월화수목금토일]?요일|"
-    r"\d+\s*(주|달|개월|년)\s*(전|후|뒤)|아까|방금|last|next|week|month|ago")
+    r"\d+\s*(주|달|개월|년)\s*(전|후|뒤)|last|next|week|month|ago")
 MONTH_REL = {"지난": -1, "저번": -1, "이번": 0, "다음": 1}
 YEAR_REL = {"재작년": -2, "작년": -1, "지난해": -1, "올해": 0, "금년": 0, "내년": 1}
 
@@ -141,7 +141,9 @@ def parse_date(text: str, today: date) -> dict[str, Any]:
     if WEEKDAY.search(t):
         return done(None, WEEKDAY.search(t).group(0), question="요일 대신 날짜로 말씀해 주세요 (예: 11월 6일)")
     rel = [("그저께", -2), ("그제", -2), ("어젯밤", -1), ("어젯저녁", -1), ("어제", -1), ("오늘", 0), ("모레", 2),
-           ("내일", 1), ("yesterday", -1), ("today", 0), ("tomorrow", 1)]
+           ("내일", 1), ("yesterday", -1), ("today", 0), ("tomorrow", 1),
+           # "just now" words mean today (review R-3); the confirmation screen still shows the full date
+           (r"조금\s*전에?", 0), (r"좀\s*전에?", 0), ("아까", 0), ("방금", 0)]
     for word, delta in rel:
         if re.search(word, t, re.I):
             return done(today + timedelta(days=delta), re.search(word, t, re.I).group(0), relative=True)
@@ -191,8 +193,12 @@ def parse_intent(text: str) -> str:
 # whole tokens that carry no food name
 FILLER_TOKENS = {"기록", "기록해", "기록해줘", "기록해주세요", "기록좀", "좀", "저장", "저장해", "저장해줘", "추가", "추가해",
                  "추가해줘", "먹었어", "먹었어요", "먹었다", "먹었음", "먹음", "먹은", "먹은거", "거", "것", "식사", "했어", "줘",
+                 "밤", "밤에", "새벽", "새벽에", "낮", "낮에",
                  "으로", "로", "에", "에는", "은", "는", "을", "를", "도", "log", "record", "ate", "had", "i", "for"}
 CONJ_SUFFIX = ("이랑", "랑", "하고")          # "A랑 B": item boundary
+COPULA_SUFFIX = ("이었어요", "이었어", "이었음", "이었다", "였어요", "였어", "였음", "였다", "이에요", "예요")
+DRINK_VERB = re.compile(r"(마셨|마심|마셔|마신|드셨|들었)\S*")
+PLACE_SUFFIX = "에서"                            # "회사에서": a place, not a food (review R-6)
 SOFT_SUFFIX = ("와", "과")                      # only when the stem is a known food (사과 stays 사과)
 PARTICLES = ("에는", "으로", "에서", "에", "로", "을", "를", "은", "는", "이", "가", "도", "만")
 CORRECTION = re.compile(r"(아\s*)?아니(다|야|고|라)|말고|정정|잘못\s*말")
@@ -203,11 +209,22 @@ def _strip_token(tok: str, known) -> tuple[str, bool]:
     unambiguous conjunctions 랑/이랑/하고, only when the remainder is a dictionary word (review P-1)."""
     if known is not None and known(tok):
         return tok, False
-    for suf in CONJ_SUFFIX:
-        if tok.endswith(suf) and len(tok) > len(suf):
-            stem = tok[: -len(suf)]
-            if known is None or known(stem) or not known(tok):
-                return stem, True
+    for suf in COPULA_SUFFIX:  # "김밥이었어" -> 김밥 (review R-6)
+        if tok.endswith(suf) and len(tok) > len(suf) and (known is None or known(tok[: -len(suf)])):
+            return tok[: -len(suf)], True
+    conj = [suf for suf in CONJ_SUFFIX if tok.endswith(suf) and len(tok) > len(suf)]
+    if conj:
+        # dictionary first: "떡볶이랑" -> 떡볶이 (랑), not 떡볶 (이랑)  (review R-2)
+        if known is not None:
+            for suf in sorted(conj, key=len):
+                if known(tok[: -len(suf)]):
+                    return tok[: -len(suf)], True
+        suf = conj[0]
+        if suf == "이랑" and len(tok) > 2:
+            stem_i = tok[:-1]  # "...이" + "랑": keep 이 when the word looks like a food ending in 이 (구이/볶이/박이)
+            if stem_i.endswith(("구이", "볶이", "박이", "튀김이")) and not stem_i.endswith("튀김이"):
+                return stem_i, True
+        return tok[: -len(suf)], True
     if known is None:
         return tok, False
     for suf in SOFT_SUFFIX:
@@ -265,8 +282,10 @@ def parse_foods(text: str, date_matched: str, meal_matched: str, known=None) -> 
             chunks.append(cur)
             cur = []
             continue
-        if low in FILLER_TOKENS or re.fullmatch(r"먹(었|은|음)\S*", low):
+        if low in FILLER_TOKENS or re.fullmatch(r"먹(었|은|음)\S*", low) or DRINK_VERB.fullmatch(low):
             continue
+        if low.endswith(PLACE_SUFFIX) and len(low) > 2 and not (known is not None and known(low)):
+            continue  # "회사에서", "집에서": place words
         word, ends = _strip_token(tok.strip(".!?~"), known)
         if word:
             cur.append(word)
@@ -319,7 +338,10 @@ def parse(text: str, now: datetime, known=None) -> dict[str, Any]:
             if d["status"] == "out_of_range":
                 questions.append("1년보다 오래된 날짜는 기록할 수 없습니다")
             if meal is None:
-                questions.append("아침, 점심, 저녁, 간식 중 어느 끼니인가요?")
+                if re.search(r"(^|\s)(밤|새벽)(에)?(\s|$)|어젯밤", norm):
+                    questions.append("밤에 드신 건 저녁인가요, 간식(야식)인가요?")
+                else:
+                    questions.append("아침, 점심, 저녁, 간식 중 어느 끼니인가요?")
             if CORRECTION.search(norm):
                 questions.append("정정하신 내용이 있습니다. 드신 음식을 처음부터 다시 말씀해 주세요")
     foods = parse_foods(norm, d["matched"], meal_matched, known) if intent == "record" else []

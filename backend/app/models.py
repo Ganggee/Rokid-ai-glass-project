@@ -262,6 +262,8 @@ MIGRATION_COLUMNS = {
         ("verification", "TEXT NOT NULL DEFAULT 'demo_mock'"),
         ("serving_size_ml", "REAL"),
         ("micro_verification", "TEXT"),
+        ("source_file", "TEXT"),                       # bundled CSV the row came from (review R-5)
+        ("retired", "INTEGER NOT NULL DEFAULT 0"),     # 1 = removed from its bundle: kept for past logs only
     ],
     "meal_log_items": [
         ("volume_ml", "REAL"),

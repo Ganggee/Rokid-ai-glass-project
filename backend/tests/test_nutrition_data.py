@@ -204,3 +204,73 @@ def test_m1_migration_keeps_legacy_non_demo_rows_ranked(tmp_path):
     init_db(conn)
     init_db(conn)
     assert nl.get_reference(conn, "MFDS-API-1")["verification"] == "legacy_api"
+
+
+# ---------------------------------------------------------------- review 04 (round 2)
+R4_WORDS = ["계란", "달걀", "계란후라이", "된장국", "국", "샐러드", "야채샐러드", "닭가슴살", "rice", "steamed rice", "egg",
+            "fried egg"]
+
+
+def test_r4_public_candidates_always_outrank_demo(conn):
+    for w in R4_WORDS:
+        m = nl.match(conn, w)
+        public = [c for c in m["candidates"] if not c["is_demo"]]
+        if m["exact"] is not None and m["exact"]["is_demo"]:
+            assert not public, (w, "DEMO auto-confirmed although public candidates exist", [c["food_name"] for c in public])
+        demo_seen = False
+        for c in m["candidates"]:
+            demo_seen = demo_seen or c["is_demo"]
+            assert not (demo_seen and not c["is_demo"]), (w, "public candidate listed after a DEMO one")
+
+
+def test_r4_demo_only_match_is_labelled_everywhere(client):
+    from datetime import date
+    from backend.app.db import connect
+    c = connect(client.app.state.settings.database_path)
+    try:  # a word that only a DEMO row knows
+        c.execute("UPDATE nutrition_references SET aliases = COALESCE(aliases,'') || ';데모전용음식' WHERE id = 'DEMO-RICE'")
+    finally:
+        c.close()
+    today = date.today().isoformat()
+    p = client.post("/api/v1/meal-logs/parse-command", json={"text": "오늘 점심 데모전용음식 200g 먹었어"}).json()
+    item = p["items"][0]
+    assert item["ref_is_demo"] is True and item["nutrition_ref_id"] == "DEMO-RICE"
+    r = client.post("/api/v1/meal-logs", json={"log_date": p["date"], "meal_type": "lunch", "items": [
+        {"food_name": "데모전용음식", "grams": 200}], "idempotency_key": "r4-demo-only-0001", "confirmed": True})
+    assert r.status_code in (200, 201), r.text
+    s = client.get("/api/v1/meal-logs/summary", params={"date": p["date"]}).json()
+    assert s["has_demo"] and "DEMO" in s["speech_text"] and any("DEMO" in ln for ln in s["display_lines"])
+    assert today
+
+
+def test_r5_rows_removed_from_bundle_are_retired_not_deleted(tmp_path):
+    from backend.app.db import connect, init_db
+    db = connect(tmp_path / "r5.sqlite3")
+    init_db(db)
+    csv_path = tmp_path / "nutrition_reference_public.csv"
+    rows = list(csv.DictReader(open(ROOT / "sample-data" / "nutrition_reference_public.csv", encoding="utf-8-sig")))
+    header = list(rows[0].keys())
+    old = dict(rows[0], id="MFDS-D-OLDROW", food_name="철회된음식", aliases="")
+    with csv_path.open("w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=header)
+        w.writeheader()
+        w.writerows(rows + [old])
+    nl.ensure_seeded(db, [csv_path])
+    assert nl.match(db, "철회된음식")["exact"]["id"] == "MFDS-D-OLDROW"
+    with csv_path.open("w", encoding="utf-8", newline="") as fh:   # new bundle without the row
+        w = csv.DictWriter(fh, fieldnames=header)
+        w.writeheader()
+        w.writerows(rows)
+    nl.ensure_seeded(db, [csv_path])
+    assert nl.match(db, "철회된음식")["exact"] is None                  # excluded from new matching
+    assert nl.get_reference(db, "MFDS-D-OLDROW")["retired"]             # still there for past snapshots
+    assert "철회된음식" not in nl.known_names(db)
+    assert all(r["id"] != "MFDS-D-OLDROW" for r in nl.list_references(db))
+    db.close()
+
+
+def test_r7_hud_priority_names_are_in_the_bundle():
+    names = set(_rows())
+    missing = [n for n in nl.HUD_PRIORITY if n not in names]
+    assert not missing, missing
+    assert len(nl.HUD_PRIORITY) >= 20

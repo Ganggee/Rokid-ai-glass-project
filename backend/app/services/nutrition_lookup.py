@@ -33,9 +33,10 @@ COLUMNS = ("id", "food_name", "aliases", "category", "kcal_per_100g", "carbs_g_p
            "micro_verification", "is_demo")
 
 # Short list shown first on the glasses when labelling food regions (cycling through 170 names is unusable).
-HUD_PRIORITY = ["쌀밥", "잡곡밥", "현미밥", "배추김치", "깍두기", "달걀말이", "달걀(생것)", "삶은달걀", "된장찌개",
-                "김치찌개", "미역국", "콩나물국", "제육볶음", "소불고기", "고등어구이", "멸치볶음", "시금치나물",
-                "콩나물무침", "두부부침", "닭가슴살샐러드", "감자샐러드", "사과", "바나나", "우유"]
+# Must stay in sync with sample-data/nutrition_reference_public.csv (test_r7_hud_priority_names_are_in_the_bundle).
+HUD_PRIORITY = ["쌀밥", "잡곡밥", "현미밥", "김밥", "배추김치", "총각김치", "달걀(생것)", "삶은달걀", "된장찌개",
+                "김치찌개", "미역국", "콩나물국", "돼지고기볶음", "조기구이", "멸치볶음", "시금치나물",
+                "콩나물무침", "두부조림", "떡볶이", "닭가슴살샐러드", "감자샐러드", "사과", "바나나", "우유"]
 
 
 def _row(r: sqlite3.Row) -> dict[str, Any]:
@@ -61,7 +62,7 @@ def _norm(s: str) -> str:
     return "".join(str(s or "").lower().split())
 
 
-def upsert_rows(conn: sqlite3.Connection, rows: Iterable[dict[str, Any]]) -> int:
+def upsert_rows(conn: sqlite3.Connection, rows: Iterable[dict[str, Any]], source_file: str | None = None) -> int:
     count = 0
     now = utcnow()
     with write_transaction(conn):
@@ -80,6 +81,7 @@ def upsert_rows(conn: sqlite3.Connection, rows: Iterable[dict[str, Any]]) -> int
                 "source": rec.get("source") or "UNKNOWN", "source_url": rec.get("source_url") or None,
                 "source_detail": rec.get("source_detail") or None, "retrieved_at": rec.get("retrieved_at") or None,
                 "verification": verification, "is_demo": 1 if demo else 0, "updated_at": now,
+                "source_file": source_file, "retired": 0,
             }
             cols = ", ".join(values)
             marks = ", ".join("?" for _ in values)
@@ -90,10 +92,29 @@ def upsert_rows(conn: sqlite3.Connection, rows: Iterable[dict[str, Any]]) -> int
     return count
 
 
-def load_csv(conn: sqlite3.Connection, path: Path) -> int:
-    """Upsert references from a CSV with the COLUMNS header (missing columns are allowed)."""
+MIRROR_VERIFICATIONS = ("mirror_cross_checked", "single_mirror")
+
+
+def load_csv(conn: sqlite3.Connection, path: Path, retire_missing: bool = True) -> int:
+    """Upsert references from a CSV with the COLUMNS header (missing columns are allowed).
+
+    Rows that came from the same bundled file before but are no longer in it are RETIRED, not deleted
+    (review R-5): past meal-log snapshots keep pointing at them, new matching ignores them. Rows from
+    before source_file existed are treated as part of the public bundle when they carry a mirror
+    verification."""
     with path.open(encoding="utf-8-sig", newline="") as fh:
-        return upsert_rows(conn, list(csv.DictReader(fh)))
+        rows = list(csv.DictReader(fh))
+    n = upsert_rows(conn, rows, source_file=path.name)
+    if retire_missing:
+        ids = {r["id"] for r in rows}
+        mirror_file = any((r.get("verification") or "") in MIRROR_VERIFICATIONS for r in rows)
+        with write_transaction(conn):
+            for r in conn.execute("SELECT id, source_file, verification FROM nutrition_references WHERE retired = 0").fetchall():
+                same_file = r["source_file"] == path.name or (
+                    r["source_file"] is None and mirror_file and r["verification"] in MIRROR_VERIFICATIONS)
+                if same_file and r["id"] not in ids:
+                    conn.execute("UPDATE nutrition_references SET retired = 1, updated_at = ? WHERE id = ?", (utcnow(), r["id"]))
+    return n
 
 
 def ensure_seeded(conn: sqlite3.Connection, csv_paths: Iterable[Path]) -> None:
@@ -121,7 +142,7 @@ def _ranked(rows):
 
 
 def list_references(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    return [_row(r) for r in _ranked(conn.execute("SELECT * FROM nutrition_references").fetchall())]
+    return [_row(r) for r in _ranked(conn.execute("SELECT * FROM nutrition_references WHERE retired = 0").fetchall())]
 
 
 def hud_label_options(conn: sqlite3.Connection, limit: int = 20) -> list[dict[str, Any]]:
@@ -149,7 +170,7 @@ def _names(r, auto_only: bool = False) -> list[str]:
 def match(conn: sqlite3.Connection, label: str, limit: int = 5) -> dict[str, Any]:
     """{"exact": ref|None, "candidates": [ref...]} — only exact name/alias matches are automatic."""
     q = _norm(label)
-    rows = conn.execute("SELECT * FROM nutrition_references").fetchall()
+    rows = conn.execute("SELECT * FROM nutrition_references WHERE retired = 0").fetchall()
     exact = _ranked([r for r in rows if any(_norm(n) == q for n in _names(r, auto_only=True))])
     # generic words ('~alias', e.g. 된장국 -> 호박된장국) are offered first but never auto-matched (review N-4)
     suggested = _ranked([r for r in rows if any(_norm(n) == q for n in _names(r))])
@@ -169,25 +190,32 @@ def match(conn: sqlite3.Connection, label: str, limit: int = 5) -> dict[str, Any
             scored.append((best, VERIFICATION_RANK.get(r["verification"], 5), r))
     scored.sort(key=lambda t: (-t[0], t[1]))
     chosen = exact[0] if exact else None
-    cands, seen = [], {chosen["id"]} if chosen else set()
-    for r in list(exact[1:]) + list(suggested) + [r for _, _, r in scored]:
+    pool, seen = [], set()
+    for r in list(exact) + list(suggested) + [r for _, _, r in scored]:
         if r["id"] not in seen:
             seen.add(r["id"])
-            cands.append(r)
-    return {"exact": _row(chosen) if chosen else None, "candidates": [_row(r) for r in cands[:limit]]}
+            pool.append(r)
+    # DEMO is never auto-confirmed while any public candidate exists (review R-4, advisor §6)
+    if chosen is not None and chosen["is_demo"] and any(not r["is_demo"] for r in pool):
+        chosen = None
+    cands = [r for r in pool if chosen is None or r["id"] != chosen["id"]]
+    public, demo = [r for r in cands if not r["is_demo"]], [r for r in cands if r["is_demo"]]
+    keep_public = limit - (1 if demo else 0)            # public first, always; the best DEMO row stays reachable last
+    cands = public[:keep_public] + demo[: limit - len(public[:keep_public])]
+    return {"exact": _row(chosen) if chosen else None, "candidates": [_row(r) for r in cands]}
 
 
 def known_names(conn: sqlite3.Connection) -> set[str]:
     """Normalized food names + all aliases (incl. generic ones): the parser's dictionary."""
     out = set()
-    for r in conn.execute("SELECT food_name, aliases FROM nutrition_references").fetchall():
+    for r in conn.execute("SELECT food_name, aliases FROM nutrition_references WHERE retired = 0").fetchall():
         for n in _names(r):
             out.add(_norm(n))
     return out
 
 
 def search_local(conn: sqlite3.Connection, query: str, limit: int = 10) -> list[dict[str, Any]]:
-    m = match(conn, query, limit)
+    m = match(conn, query, limit - 1 if limit > 1 else limit)  # leave room for the exact row
     return ([m["exact"]] if m["exact"] else []) + m["candidates"][: limit - (1 if m["exact"] else 0)]
 
 
