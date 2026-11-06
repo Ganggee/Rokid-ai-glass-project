@@ -58,3 +58,32 @@
 | `python scripts/soak_inventory_excel.py --seed {2026,7,99} --uses 2000 --edits 60 --restarts 6` | 3/3 PASS. 각 36.1 / 35.0 / 36.6초. needs_review 32 / 18 / 17. exports·snapshots 최대 50, DB 약 0.87 MB |
 | 실제 uvicorn + `scripts/smoke_test.py` (Excel 동기화 켬, 한글 파일명) | `RESULT PASS`, status `ok`·`up_to_date`, `/admin/inventory-sync` 200 |
 | `/tmp/review/typo_api.py` | dry-run `preview`(invalid 1), apply `200 merged_and_exported`, status pending 없음 |
+
+# Round 2 — review 04 (토의자 재검증) + 05 (지도교수 최종 심사 조건 M-1~M-4)
+
+각 이슈는 재현 테스트를 먼저 추가해 실패를 확인한 뒤 고쳤습니다.
+
+| ID | 판정 | 조치 | 커밋 | 테스트 |
+|---|---|---|---|---|
+| **M-1 / F-1** 내보내기 경합 | FIXED | 현재 파일을 옆으로 옮겨(sha 확인: 마지막 export 또는 이미 병합한 내용만 덮어씀) → `os.link`로 "없을 때만 생성". 사람의 저장이 쓰기 전·도중에 들어오면 그 파일을 유지, `deferred_changed`(state `waiting`, 이벤트 `export_deferred_external_change`) → 다음 poll에 병합. 하드 링크 미지원 시 `os.replace`(status `cas_mode=replace`). 두 저장이 겹치면 오래된 쪽을 `(sync-conflict …)` 사본으로 남김(병합 안 함). soak에 "Σ excel_sync adjust = Σ 사람 수정 − 보고된 음수 병합" 불변조건 | `eef009b` | `test_f1_human_save_during_export_is_not_overwritten`(지도교수 +10 시나리오: H 15→25 유지), `test_f1_file_created_while_exporting_to_missing_path_is_kept`, `test_f1_fallback_without_hard_links_still_exports`, `test_f1_high_frequency_uses_with_concurrent_human_saves_preserve_every_edit`(수정 전 97 중 62 반영 → 수정 후 전부), `run_soak` 불변조건 |
+| R-1 오래된 사본 blocked | FIXED | 보관 = 최근 50회 **또는** 90일 중 넓은 쪽(90일 안 최대 5000 + 하루 1개) + 현재 파일 export_id, 스냅숏 zlib 압축. 그래도 모르면 `blocked` + `reason_text`(한국어). `POST /excel-sync/resolve`: `discard_file`(백업 `data/excel_backups/` 후 다시 내보내기), `apply_file_values`(dry_run 미리보기, confirmed 후 adjust). `/admin/inventory-sync` 버튼 | `5155de9` | `test_r1_old_copy_beyond_keep_count_but_within_90_days_still_merges`, `test_r1_snapshot_older_than_retention_is_pruned_then_blocked_with_readable_reason`, `test_r1_resolve_discard_file_requires_confirmation_backs_up_and_reexports`, `test_r1_resolve_apply_file_values_preview_then_confirm`, `test_r1_resolve_api_and_admin_buttons`, `test_r1_window_is_capped_and_snapshots_compressed` |
+| R-2 / M-3 음식명 잘림 | FIXED | 경계 분리는 사전 우선(떡볶이랑→떡볶이), 사전에 없을 때만 문법 규칙. 띄어 쓴 `하고/랑/이랑`도 경계. `엊저녁`=어제 저녁, `엊그저께/그끄저께`는 되묻기, 음식명에 날짜 조각이 남으면 되묻기 | `7ebe2dc`, `eef009b` | `test_r2_food_names_ending_in_i_survive_conjunctions`(8개×3), `test_r2_every_bundled_name_round_trips_through_conjunctions`, `test_m3_every_bundled_name_with_spaced_hago_and_comma`(124개×3 문형), `test_m3_eotjeonyeok_…`, `test_m3_leftover_date_fragment_in_food_name_asks`, `test_m3_fragment_check_itself` |
+| R-4 / M-2 DEMO 자동 확정 | FIXED | 공개 후보가 하나라도 있으면 DEMO 자동 확정 금지, 후보는 항상 공개 행 먼저(최상위 DEMO 1개는 마지막에 남김). DEMO로만 매칭되면 응답 `ref_is_demo`, HUD `[DEMO]`, `display_lines`·`speech_text`에 DEMO. iteration-1 `test_full_pipeline…`의 "계란 → DEMO" 단정은 이 규칙(지도교수 §6)에 맞게 변경 | `7ebe2dc` | `test_r4_public_candidates_always_outrank_demo`(12단어), `test_r4_demo_only_match_is_labelled_everywhere` |
+| X-5 시작 직후 waiting | FIXED | lifespan 시작 sync가 파일 stat을 poller의 `observed`에 넣음 | `5155de9` | `test_x5_startup_sync_records_observed_stat_so_first_poll_is_stable`, 실제 uvicorn 시작 직후 status `ok` |
+| R-3 아까/방금 | FIXED | 오늘(상대 날짜, 확인 화면에 전체 날짜) | `7ebe2dc` | `test_r3_just_now_words_mean_today` |
+| R-5 철회 행 | FIXED | `source_file`·`retired` 열 추가(멱등 마이그레이션). 같은 번들에서 빠진 행은 retired: 과거 기록 유지, 매칭·목록·사전에서 제외 | `7ebe2dc` | `test_r5_rows_removed_from_bundle_are_retired_not_deleted` |
+| R-6 마셨어/…에서/이었어/밤에 | FIXED | 동사·장소어·서술격 제거, '밤/새벽'은 "저녁인가요, 간식(야식)인가요?" | `7ebe2dc` | `test_r6_…` 5건 |
+| R-7 HUD 목록 | FIXED | 번들과 일치(24개) | `7ebe2dc` | `test_r7_hud_priority_names_are_in_the_bundle` |
+| R-8 셀 하나가 전체 보류 | WONTFIX(설계) | 문서 명시(sample-data/README, poc-results 한계 5) | 문서 | — |
+| R-9 LibreOffice 잠금 | FIXED | `.~lock.<name>#` 감지 | `5155de9` | `test_r9_libreoffice_lock_file_detected` |
+| M-4 문서 | FIXED | troubleshooting(AUTO_APPLY 기본 true, 100 mL 31행, blocked/waiting/sync-conflict 안내), required-inputs 124행, sample-data/README 머리말 모순·처음 연결하기·오래된 사본과 복구·1인분=식품중량(쌀밥 100 g)·retired, iteration-2-plan Final design과 Deviations(30/60/150), 배포 문서에 일지·분석·Excel = SERVER 모드 전용 | (이 커밋) | 문서 diff |
+| R-10, R-11 | 남김 | 다음 iteration | — | — |
+
+## Round 2 재실행 결과
+| 명령 | 결과 |
+|---|---|
+| `python -m pytest -q` | **213 passed** |
+| `node aiui-agent/tests/run-aiui-checks.mjs --aiui-repo /tmp/aiui-src/jsar --with-server` | **24/24**, validator issues 0 |
+| `python scripts/validate_nutrition_csv.py …public.csv …demo.csv` | 124 / 6 rows, 0 failing |
+| `python scripts/soak_inventory_excel.py --seed 4242` / `--seed 2026` | PASS / PASS. 사람 수정 합계 387 / 278 = excel_sync adjust 합계, 보고된 충돌 0. exports 최대 590 / 580(90일 창), DB 1.5 MB |
+| 실제 uvicorn + `scripts/smoke_test.py` (Excel 켬, 한글 경로) | `RESULT PASS`, 시작 직후 `ok`, `cas_mode=link` |

@@ -54,23 +54,29 @@ The official importer (`scripts/import_nutrition_mfds.py`) remains the primary p
 All iteration-1 tests stay green; new unit/API tests per feature; AIUI validator 0 issues; harness extended; docs (api, capability matrix, test plan, results with honest levels) updated; CI green on GitHub.
 
 ## Final design (as implemented, 2026-11-06)
-- **A. Nutrition**: `nutrition_reference_public.csv` 165 rows from 4 public mirrors of the MFDS standard data,
-  cross-checked by name + kcal/C/P/F (+ serving); provenance in `source_detail`; ranked by `verification`;
-  exact-match-only resolution; 100 mL basis → no per-100 g values; official importer ranks highest; validator script.
+- **A. Nutrition**: `nutrition_reference_public.csv` 124 rows (104 `mirror_cross_checked`) from 4 public mirrors of the
+  MFDS/RDA data; representative row per name: 100 g before 100 mL, official-code row (health-log) as anchor, every
+  mirror must agree, no agreement → excluded (50). Provenance in `source_detail`; ranked by `verification`;
+  exact-match-only resolution; DEMO rows never auto-confirmed while a public candidate exists; rows dropped from the
+  bundle are retired (kept for past logs); 100 mL basis → no per-100 g values; official importer ranks highest.
 - **B. Diary**: rule parser (`diary_parser.py`) with injectable clock, date fixed at parse, confirmation + idempotent
   POST, gram policy (stated | count×serving only for matching unit | null+reason), per-item snapshots,
   from-session idempotent per analysis, summary `speech_text` ≤150 chars / ≤3 sentences, soft delete.
   AIUI `pages/diary/diary.ink` + meal result "식사 기록".
 - **C. Excel**: `excel_sync.py` — export_id baselines stored in `excel_exports`/`excel_imports`, triggers bump
-  `change_seq`, atomic replace, lock/unstable/truncated/conflict-copy handling, poller in FastAPI lifespan,
-  `merge_delta` default, AUTO_APPLY opt-in. LOCAL mode (glasses JSON in wx storage) has no Excel sync.
+  `change_seq`; compare-and-swap placement (move aside → verify → `os.link` create-only-if-absent, fallback
+  `os.replace`); lock (Excel/LibreOffice)/unstable/truncated/conflict-copy handling; poller in FastAPI lifespan with the
+  startup stat; `merge_delta` default (two independent stock deltas are a `merge`, not a conflict); AUTO_APPLY default
+  **true for safe plans only** (known baseline, no conflict/invalid), otherwise `needs_review`; baselines kept for the
+  newest 50 exports or 90 days (capped 5000 + 1/day, zlib-compressed); `blocked` files resolved explicitly
+  (`/excel-sync/resolve`: discard_file | apply_file_values). LOCAL mode (glasses JSON in wx storage) has no Excel sync.
 - Deviations from the advisor rubric: see the coder report in the PR description.
 
 ## Deviations from the advisor rubric (tracked in-repo; review 02 NIT-2)
 | Rubric / plan item | What was done | Why |
 |---|---|---|
-| 영양 행 150~400, cross-check by 식품코드 | 124 rows; matched by food name + kcal/C/P/F, official 식품코드 only where health-log has it (37 rows) | mirrors other than health-log carry no 식품코드; rows without agreement are excluded, not filled |
+| 영양 행 최소 30 / 목표 60 / 상한 150(advisor 결정 9), cross-check by 식품코드 | 124 rows; matched by food name + kcal/C/P/F, official 식품코드 only where health-log has it (37 rows) | mirrors other than health-log carry no 식품코드; rows without agreement are excluded, not filled |
 | "conflict 하나라도 있으면 자동 반영 중지" | `merge_delta` of two independent stock deltas is classified as a `merge` (both kept), not a conflict; negative merges, metadata both-changed and db_wins/excel_wins overrides are conflicts | stopping on every simultaneous restock + use would block normal continuous use; nothing is lost in a merge |
 | soak "재기동 5+" | in-process reconnect ×6 per run + a real-app poller/HTTP test + crash-recovery test | OS-level process restarts inside one test run are slow and flaky in CI |
 | Excel 수식 보존 | not preserved; formula cells reported invalid | out of scope (advisor) |
-| 1인분 단위 | `serving_unit=인분` only for 음식 rows | taken from the mirror README ("음식 serving_g = 1인분"), not an original column |
+| 1인분 단위 | `serving_unit=인분` only for 음식 rows; `serving_size_g` = the source '식품중량' column (e.g. 쌀밥 100 g) | taken from the mirror README ("음식 serving_g = 1인분"), not an original column; documented in sample-data/README |

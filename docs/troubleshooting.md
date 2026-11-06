@@ -22,13 +22,15 @@
 ## Iteration 2
 | 증상 | 원인 후보 | 조치 |
 |---|---|---|
-| 음식이 kcal "미상" | 기준량이 100 mL인 음식(국·면 등 65행), 정확 일치 없음, 단위 불일치('공기' vs '인분') | g를 말하기("밥 200그램"), '1인분'으로 말하기, 후보 바꾸기 버튼 |
+| 음식이 kcal "미상" | 기준량이 100 mL인 음식(국·면 등 31행), 정확 일치 없음, 단위 불일치('공기' vs '인분') | g를 말하기("밥 200그램"), '1인분'으로 말하기, 후보 바꾸기 버튼 |
 | 식사 일지 날짜가 하루 어긋남 | 자정 이후 '오늘' | 확인 화면의 전체 날짜 확인, '어제'라고 말하기. `APP_TIMEZONE` 확인 |
 | Windows에서 `ZoneInfoNotFoundError` 경고 없이 +09:00 사용 | tzdata 미설치 | Asia/Seoul은 고정 +09:00으로 처리(DST 없음). 다른 시간대면 `pip install tzdata` |
 | 업그레이드 후 영양 행이 6개뿐 | 예전 `.env`의 `NUTRITION_CSV=sample-data/nutrition_demo.csv` | `NUTRITION_CSV=sample-data/nutrition_reference_public.csv,sample-data/nutrition_demo.csv`로 수정 후 재시작 |
-| Excel status `blocked` | 서버가 만들지 않은 파일, `_sync` 숨김 시트 삭제, 다른 파일을 같은 이름으로 덮어씀 | 파일을 다른 이름으로 옮기고 서버가 새로 내보내게 한 뒤, 바꿀 값은 새 파일에 다시 입력. 또는 `import_inventory.py --mode adjust`로 명시적 반영 |
+| Excel status `blocked` | 서버가 만들지 않은 파일(기존 회사 파일을 그대로 지정), `_sync` 숨김 시트 삭제, 보관 범위(최근 50회/90일)보다 오래된 사본 | `/admin/inventory-sync`의 "파일 수정 버리고 다시 내보내기"(백업 후 덮어씀) 또는 "파일 값 반영"(미리보기 후 adjust). 처음 연결이면 sample-data/README의 "처음 연결하기" 순서대로 |
+| status `waiting` + `deferred_changed` 이벤트 | 서버가 쓰는 순간 사람이 저장함 → 사람의 저장본을 지키고 쓰기를 미룸 | 조치 불필요. 다음 poll에 병합 후 내보냄 |
+| 폴더에 `inventory (sync-conflict xxxxxx).xlsx` 생김 | 내보내기 도중 두 번의 저장이 겹쳐 오래된 쪽을 따로 남김(병합하지 않음) | 내용을 확인해 필요한 값만 본 파일에 다시 입력 후 사본 삭제 |
 | `pending_locked` 지속 | Excel에서 파일을 열어 둠, 동기화 클라이언트 잠금 | 파일 닫기 → 다음 poll에 1회 내보내기 |
-| Excel 수정이 반영 안 됨 | `INVENTORY_XLSX_AUTO_APPLY=false`(기본) | `POST /api/v1/inventory/excel-sync {"dry_run": false, "confirmed": true}` 또는 AUTO_APPLY=true |
+| Excel 수정이 반영 안 됨 | `INVENTORY_XLSX_AUTO_APPLY=false`로 꺼 두었거나(기본값은 true), 잘못된 셀/conflict 때문에 `needs_review` | status의 `reason_text` 확인 → `/admin/inventory-sync`에서 미리보기·Apply |
 | 내 서식/추가 시트가 사라짐 | 내보내기가 통합문서를 새로 씀 | 서식·메모는 다른 파일에 두기(범위 제외) |
 
 ### Iteration 2 (review 02 이후)
@@ -39,3 +41,11 @@
 | 음식 이름이 확인 화면에서 바뀜/잘림 | 조사는 단어 끝에서, 영양 사전에 있는 이름이 될 때만 제거 | 사전에 없는 음식은 말한 그대로 남고 kcal 미상. 후보 바꾸기 버튼 사용 |
 | "지난달", "저번 주" 등으로 말했더니 날짜를 되물음 | 이해하지 못한 날짜 표현은 오늘로 저장하지 않고 되묻도록 설계 | "10월 6일"처럼 날짜로 말하기 |
 | uvicorn을 여러 워커로 실행 | 프로세스 사이 동기화 잠금 없음 | `--workers 1`로 실행 |
+
+### Iteration 2 (review 04 / advisor 05 이후)
+| 증상 | 원인 | 조치 |
+|---|---|---|
+| '계란', 'rice'가 DEMO 값이 아니라 후보로만 나옴 | 공개 데이터 후보가 있으면 DEMO 행은 자동 확정하지 않음 | 후보에서 공개 행(예: 달걀(생것))을 고르기 |
+| 식사 일지 화면에 "서버 필요" | 식사 일지·식사 분석은 **SERVER 모드 전용**(LOCAL DEMO 모드에서는 동작하지 않음) | `configure_agent.py --base-url ... --token ...` |
+| '아까', '방금' | 오늘로 처리(확인 화면에 전체 날짜 표시) | 다른 날이면 날짜로 말하기 |
+| '엊그저께'라고 했더니 되물음 | 며칠인지 모호해 되묻도록 설계('엊저녁'은 어제 저녁) | 날짜로 말하기 |

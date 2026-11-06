@@ -85,7 +85,8 @@ g 규칙(영양값은 항상 기준표 값이므로 kcal은 항상 `is_estimate=
 | Method | Path | 설명 |
 |---|---|---|
 | POST | `/api/v1/inventory/excel-sync` | `{dry_run: true}`(기본) = 병합 계획 미리보기만. `{dry_run: false, confirmed: true}` = 외부 수정 3-way 병합 + 현재 재고 내보내기. `confirmed` 없으면 400. 미설정이면 409 `EXCEL_SYNC_DISABLED` |
-| GET | `/api/v1/inventory/excel-sync/status` | 경로, `pending_export`, `change_seq/exported_seq`, 마지막 export/결과, 잠금 파일·충돌 사본, 최근 이벤트(충돌/경고/무효 행) |
+| GET | `/api/v1/inventory/excel-sync/status` | 경로, `state`, `reason_text`(사람이 읽는 한 문장), `pending_export`, `change_seq/exported_seq`, 마지막 export/결과, 잠금 파일(Excel `~$`, LibreOffice `.~lock.#`)·충돌 사본, `cas_mode`(link/replace), 최근 이벤트 |
+| POST | `/api/v1/inventory/excel-sync/resolve` | `{action: discard_file \| apply_file_values, dry_run?, confirmed}` — `blocked`/`needs_review`일 때 명시적 해결. discard_file = 파일 백업(`data/excel_backups/`) 후 DB 값으로 다시 내보내기. apply_file_values = 파일의 유효 행을 절대값으로 보고 `adjust` 기록 후 내보내기(`dry_run:true`로 미리보기). `confirmed` 없으면 400 |
 
 `status` 응답(GET)에는 `state`(`ok` | `ok_with_rejected_rows` | `needs_review` | `blocked` | `error` | `pending_locked` | `waiting` | `disabled`), `last_error`, `stored`(동기화 테이블 행 수)가 있습니다. 실패한 상태에서 `ok`/`up_to_date`를 표시하지 않습니다.
 
@@ -93,7 +94,9 @@ g 규칙(영양값은 항상 기준표 값이므로 kcal은 항상 `is_estimate=
 
 관리 화면: `GET /admin/inventory-sync` (토큰 입력 방식은 `/admin/meals`와 같음; 미리보기, invalid/conflict 목록, Apply 버튼, 최근 이벤트).
 
-`status` 값: `exported`, `merged_and_exported`, `up_to_date`, `pending_locked`, `needs_review`, `error`, `blocked`(export_id 미상 — 파일 덮어쓰지 않음), `deferred_locked_by_excel`, `deferred_unstable`, `deferred_unreadable`, `external_changes_pending_confirmation`, `preview`.
+`status` 값: `exported`, `merged_and_exported`, `up_to_date`, `pending_locked`, `needs_review`, `error`, `blocked`(export_id 미상 — 파일 덮어쓰지 않음), `deferred_locked_by_excel`, `deferred_unstable`, `deferred_unreadable`, `deferred_changed`(쓰는 순간 사람이 저장 — 사람의 저장본 유지, 다음 poll에 병합), `external_changes_pending_confirmation`, `preview`.
+
+보관: 병합 기준 스냅숏은 최근 50회 또는 최근 90일(최대 5000 + 하루 1개, zlib 압축) 중 넓은 쪽 + 현재 파일의 export_id.
 
 ## Nutrition (iteration 2 changes)
 - 응답 행에 `verification`(`official_file_import` > `mirror_cross_checked` > `single_mirror` > `web_transcribed` > `demo_mock`), `serving_size_g`, `serving_unit`, `basis`, `source_url`, `retrieved_at`.

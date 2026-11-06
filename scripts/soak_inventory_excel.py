@@ -9,7 +9,8 @@ connection restarts (in-process: the SQLite connection and sync state are recrea
 not restarted — server-restart recovery is covered by tests). At the end it asserts:
   stock == sum of transaction deltas for every product, never negative, Excel == DB after sync,
   no idempotency key applied twice, no Excel file content applied twice, no typo product created,
-  sync tables stay under fixed row limits (KEEP_EXPORTS / KEEP_EVENTS).
+  sync tables stay bounded (KEEP_EXPORTS or the 90-day window capped at KEEP_MAX_EXPORTS, KEEP_EVENTS), and
+  every human stock edit survives: Σ excel_sync adjusts = Σ human deltas − reported negative-merge conflicts.
 """
 from __future__ import annotations
 

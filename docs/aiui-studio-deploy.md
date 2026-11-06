@@ -23,7 +23,7 @@ python scripts\smoke_test.py --base-url https://<host> --no-write
 python scripts\configure_agent.py --base-url https://<host> --token <API_TOKEN>    # SERVER 모드
 # python scripts\configure_agent.py --lang en      # 한글 글리프가 깨지면
 ```
-설정 없이 Import 하면 **LOCAL DEMO 모드**(재고를 안경 저장소에 보관, 식사 분석 비활성)로 동작합니다.
+설정 없이 Import 하면 **LOCAL DEMO 모드**(재고를 안경 저장소에 보관, 식사 분석·식사 일지·Excel 동기화 비활성 — 모두 SERVER 모드 전용)로 동작합니다.
 토큰이 AIX에 포함되므로 PoC 전용 토큰을 쓰고 시험 후 교체하세요. 커밋 전 `--reset`.
 
 ## 2. AIUI Studio로 가져오기
