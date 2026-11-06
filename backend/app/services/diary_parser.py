@@ -66,8 +66,8 @@ def normalize_numerals(text: str) -> str:
             return m.group(1) + (str(n) if n is not None else m.group(2)) + unit
         return _r
     t = re.sub(rf"(^|[\s,]|\d)([{_SINO_CH}]+)년", rep("년"), text)
-    t = re.sub(rf"(^|[\s,년])([영일이삼사오육칠팔구십]+)월(?!요일)", rep("월"), t)
-    t = re.sub(rf"(^|[\s,월])([일이삼사오육칠팔구십]+)일(?!요일)", rep("일"), t)
+    t = re.sub(r"(^|[\s,년])([영일이삼사오육칠팔구십]+)월(?!요일)", rep("월"), t)
+    t = re.sub(r"(^|[\s,월])([일이삼사오육칠팔구십]+)일(?!요일)", rep("일"), t)
     return t
 
 
