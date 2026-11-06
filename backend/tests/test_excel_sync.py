@@ -599,3 +599,70 @@ def test_x3_settings_defaults_and_admin_page(tmp_path, monkeypatch, client):
     assert load_settings(env_file=tmp_path / "none.env", api_token="t" * 24).inventory_xlsx_poll_seconds == 30
     page = client.get("/admin/inventory-sync")
     assert page.status_code == 200 and "Apply valid rows" in page.text and "excel-sync/status" in page.text
+
+
+def test_x6_real_app_poller_with_concurrent_http_and_edits(tmp_path):
+    """create_app + lifespan poller thread (0.1 s) + concurrent /use over HTTP + human edits -> converges."""
+    import threading
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from backend.app.config import load_settings
+    from backend.app.main import create_app
+
+    from .conftest import TOKEN
+
+    xlsx = tmp_path / "linked" / "inventory.xlsx"
+    settings = load_settings(env_file=tmp_path / "none.env", api_token=TOKEN, database_path=tmp_path / "a.sqlite3",
+                             upload_dir=tmp_path / "u", inventory_xlsx_path=xlsx, inventory_xlsx_poll_seconds=0.1)
+    seed(settings.database_path)
+    rng = random.Random(5)
+    with TestClient(create_app(settings)) as c:
+        c.headers.update(AUTH)
+        c.post("/api/v1/inventory/import/preview")  # no-op request to warm up the app
+        errors = []
+
+        def worker(n):
+            for _ in range(n):
+                r = c.post("/api/v1/inventory/use", json={"product_id": rng.choice([S, A, H]), "quantity": 1,
+                                                          "idempotency_key": uuid.uuid4().hex, "confirmed": True})
+                if r.status_code not in (200, 409):
+                    errors.append(r.text)
+
+        threads = [threading.Thread(target=worker, args=(10,)) for _ in range(3)]
+        for t in threads:
+            t.start()
+        for k in range(4):  # a person restocks in Excel while the glasses keep working
+            time.sleep(0.4)
+            for _ in range(50):
+                try:
+                    q = excel_stock(xlsx, H)
+                    edit(xlsx, {(H, "stock_qty"): int(q) + 10})
+                    break
+                except Exception:
+                    time.sleep(0.05)
+        for t in threads:
+            t.join()
+        assert not errors, errors[:3]
+        from datetime import datetime, timezone
+
+        after_edits = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+        deadline = time.time() + 15
+        st = None
+        while time.time() < deadline:  # wait for a poller result produced AFTER the last human edit
+            st = c.get("/api/v1/inventory/excel-sync/status").json()
+            lr = st["last_result"] or {}
+            if (lr.get("at", "") > after_edits and lr.get("status") == "up_to_date" and st["state"] == "ok"
+                    and not st["pending_export"]):
+                break
+            time.sleep(0.2)
+        assert st["state"] == "ok" and not st["pending_export"], st
+        for pid in (S, A, H):
+            assert excel_stock(xlsx, pid) == c.get(f"/api/v1/inventory/products/{pid}").json()["stock_qty"]
+    conn = connect(settings.database_path)
+    try:
+        check_invariants(conn)
+        assert conn.execute("SELECT COUNT(*) FROM inventory_transactions WHERE source = 'excel_sync'").fetchone()[0] >= 1
+    finally:
+        conn.close()
